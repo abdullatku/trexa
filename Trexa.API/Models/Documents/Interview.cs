@@ -1,0 +1,29 @@
+namespace Trexa.Api.Models.Documents;
+
+public sealed class Interview
+{    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+    public string StudentId { get; set; } = string.Empty;
+    public string DesignationId { get; set; } = string.Empty;
+    public string? InterviewerId { get; set; }
+    public string ScheduledDate { get; set; } = "pending";
+    public string Status { get; set; } = "pending";
+    public string? Notes { get; set; }
+    public Dictionary<string, object>? Feedback { get; set; }
+    public Dictionary<string, object>? StudentFeedback { get; set; }
+    public string? Timezone { get; set; }
+    public string? ZoomJoinUrl { get; set; }
+    public string? ZoomStartUrl { get; set; }
+    public string? ZoomMeetingId { get; set; }
+    public string? ZoomPassword { get; set; }
+    public bool AcceptedByInterviewer { get; set; }
+    public string? Skill { get; set; }
+    public string? Level { get; set; }
+    public string? InterviewLevel { get; set; }
+    public string? CvUrl { get; set; }
+    public int RescheduleCount { get; set; }
+    public string? RescheduleReason { get; set; }
+    public string? CompanyLevel { get; set; }
+    public string? PreferredCompany { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}

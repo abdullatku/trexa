@@ -1,0 +1,9 @@
+.DS_Store
+Trexa.API/bin/
+Trexa.API/obj/
+Trexa.API.Tests/bin/
+Trexa.API.Tests/obj/
+Trexa.API/obj/Debug/
+Trexa.API/publish/
+Trexa.UI/build/assets/index-DVhB5ZTA.css
+Trexa.UI/node_modules/
