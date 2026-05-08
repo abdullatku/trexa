@@ -47,8 +47,9 @@ export function ViewPlans() {
     }
     
     // Load Razorpay script
+    const razorpayScriptUrl = import.meta.env.VITE_RAZORPAY_SCRIPT_URL || 'https://checkout.razorpay.com/v1/checkout.js';
     const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.src = razorpayScriptUrl;
     script.async = true;
     document.body.appendChild(script);
 
@@ -197,7 +198,7 @@ export function ViewPlans() {
         amount: orderData.amount,
         currency: orderData.currency,
         order_id: orderData.orderId, // This is critical - the order ID from backend
-        name: 'MockInterview Pro',
+        name: 'Trexa',
         description: `${plan.name} Plan - ${plan.interviews} Interviews`,
         handler: async function (response: any) {
           // Payment successful, verify on backend

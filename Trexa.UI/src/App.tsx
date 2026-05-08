@@ -22,7 +22,7 @@ export default function App() {
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/signup/confirmation" element={<SignUpConfirmationPage />} />
-          <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
           
           <Route
             path="/student/*"

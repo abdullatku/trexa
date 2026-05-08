@@ -49,7 +49,7 @@ export function EmailVerificationPage() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
             <GraduationCap className="h-10 w-10 text-indigo-600" />
-            <span className="text-3xl">MockInterview Pro</span>
+            <span className="text-3xl">Trexa</span>
           </div>
         </div>
 

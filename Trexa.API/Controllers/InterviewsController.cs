@@ -482,21 +482,21 @@ public sealed class InterviewsController : ControllerBase
         await _emailService.SendAsync(recipients, $"[Trexa] {subject}", body, cancellationToken);
     }
 
-    private async Task<List<string>> GetNotificationRecipientsAsync(
+    private async Task<List<EmailRecipient>> GetNotificationRecipientsAsync(
         Interview interview,
         bool notifyStudent,
         bool notifyInterviewer,
         bool notifyAdmins,
         CancellationToken cancellationToken)
     {
-        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var recipients = new HashSet<EmailRecipient>();
 
         if (notifyStudent && Guid.TryParse(interview.StudentId, out var studentId))
         {
             var student = await _userRepository.GetByIdAsync(studentId, cancellationToken);
             if (!string.IsNullOrWhiteSpace(student?.Email))
             {
-                recipients.Add(student.Email);
+                recipients.Add(new EmailRecipient { Email = student.Email, Name = student.Name });
             }
         }
 
@@ -505,7 +505,7 @@ public sealed class InterviewsController : ControllerBase
             var interviewer = await _userRepository.GetByIdAsync(interviewerId, cancellationToken);
             if (!string.IsNullOrWhiteSpace(interviewer?.Email))
             {
-                recipients.Add(interviewer.Email);
+                recipients.Add(new EmailRecipient { Email = interviewer.Email, Name = interviewer.Name });
             }
         }
 
@@ -516,7 +516,7 @@ public sealed class InterviewsController : ControllerBase
             {
                 if (!string.IsNullOrWhiteSpace(admin.Email))
                 {
-                    recipients.Add(admin.Email);
+                    recipients.Add(new EmailRecipient { Email = admin.Email, Name = admin.Name });
                 }
             }
         }

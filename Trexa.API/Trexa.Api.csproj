@@ -8,7 +8,9 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.1" />
     <PackageReference Include="AWSSDK.SimpleEmailV2" Version="4.0.0" />
+    <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="MimeKit" Version="4.16.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
   </ItemGroup>
 </Project>

@@ -210,8 +210,9 @@ public sealed class AuthService : IAuthService
         var link = BuildVerificationLink(token);
         var subject = "Verify your Trexa email";
         var body = $"Hello {user.Name},\n\nPlease verify your email by clicking the link below:\n{link}\n\nThis link expires in 24 hours.";
+        var recipient = new EmailRecipient { Email = user.Email, Name = user.Name };
 
-        await _emailService.SendAsync([user.Email], subject, body, cancellationToken);
+        await _emailService.SendAsync([recipient], subject, body, cancellationToken);
     }
 
     private string BuildVerificationLink(string token)
@@ -220,7 +221,7 @@ public sealed class AuthService : IAuthService
             ? "http://localhost:5264"
             : _emailSettings.VerificationBaseUrl.TrimEnd('/');
 
-        return $"{baseUrl}/{ApiRoutes.Prefix}/auth/verify-email?token={Uri.EscapeDataString(token)}";
+        return $"{baseUrl}/verify-email?token={Uri.EscapeDataString(token)}";
     }
 
     private static string GenerateVerificationToken() => Guid.NewGuid().ToString("N");

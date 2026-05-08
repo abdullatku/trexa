@@ -134,7 +134,7 @@ builder.Services.AddControllers();
 // Configure Kestrel for production deployment
 builder.WebHost.ConfigureKestrel(options =>
 {
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "5264";
     options.ListenAnyIP(int.Parse(port));
 });
 

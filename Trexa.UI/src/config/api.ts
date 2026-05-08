@@ -1,4 +1,5 @@
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'https://trexaapi-env.eba-hxu8rcti.ap-south-1.elasticbeanstalk.com/make-server-2eb59763';
+// const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'https://trexaapi.xoft.in/api';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5264/api';
 
 export const apiBaseUrl = rawBaseUrl.replace(/\/$/, '');
 

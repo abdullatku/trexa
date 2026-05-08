@@ -34,6 +34,7 @@ Frontend calls are routed through `VITE_API_BASE_URL`.
 
 Use `.env.example` as reference:
 - `VITE_API_BASE_URL=http://localhost:5264/make-server-2eb59763`
+- `VITE_RAZORPAY_SCRIPT_URL=https://checkout.razorpay.com/v1/checkout.js`
 
 ## Optional: Use DynamoDB for plans/subscriptions
 

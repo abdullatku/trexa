@@ -28,7 +28,7 @@ export function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <GraduationCap className="h-8 w-8 text-indigo-600" />
-            <span className="text-2xl">MockInterview Pro</span>
+            <span className="text-2xl">Trexa</span>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => navigate('/signin')}>
@@ -129,7 +129,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="bg-white mt-20 py-8 border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-600">
-          <p>&copy; 2025 MockInterview Pro. All rights reserved.</p>
+          <p>&copy; 2025 Trexa. All rights reserved.</p>
         </div>
       </footer>
     </div>
