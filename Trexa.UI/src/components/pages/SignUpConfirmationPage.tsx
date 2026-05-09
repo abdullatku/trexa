@@ -1,7 +1,8 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { GraduationCap, MailCheck } from 'lucide-react';
+import { MailCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { TrexaLogo } from '../ui/logo';
 
 export function SignUpConfirmationPage() {
   const [searchParams] = useSearchParams();
@@ -12,8 +13,7 @@ export function SignUpConfirmationPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <GraduationCap className="h-10 w-10 text-indigo-600" />
-            <span className="text-3xl">Trexa</span>
+            <TrexaLogo className="h-10 w-10 text-indigo-600" />
           </div>
         </div>
 

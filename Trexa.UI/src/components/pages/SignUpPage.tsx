@@ -4,8 +4,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { GraduationCap } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { TrexaLogo } from '../ui/logo';
+import { toast } from 'sonner';
 import { apiUrl } from '../../config/api';
 
 export function SignUpPage() {
@@ -61,8 +61,7 @@ export function SignUpPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <GraduationCap className="h-10 w-10 text-indigo-600" />
-            <span className="text-3xl">Trexa</span>
+            <TrexaLogo className="h-10 w-10 text-indigo-600" />
           </div>
         </div>
 

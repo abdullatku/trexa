@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { GraduationCap, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { toast } from 'sonner';
+import { TrexaLogo } from '../ui/logo';
 
 export function EmailVerificationPage() {
   const [searchParams] = useSearchParams();
@@ -48,8 +49,7 @@ export function EmailVerificationPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <GraduationCap className="h-10 w-10 text-indigo-600" />
-            <span className="text-3xl">Trexa</span>
+            <TrexaLogo className="h-10 w-10 text-indigo-600" />
           </div>
         </div>
 

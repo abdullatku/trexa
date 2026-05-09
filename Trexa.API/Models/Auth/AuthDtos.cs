@@ -3,6 +3,8 @@ namespace Trexa.Api.Models.Auth;
 public sealed record SignUpRequest(string Email, string Password, string Name);
 public sealed record SignInRequest(string Email, string Password);
 public sealed record ResendVerificationRequest(string Email);
+public sealed record ForgotPasswordRequest(string Email);
+public sealed record ResetPasswordRequest(string Token, string NewPassword);
 public sealed record UpdateProfileRequest(
     string Name,
     string? LinkedInProfile,

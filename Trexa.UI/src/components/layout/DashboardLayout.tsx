@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/button';
-import { Zap, LogOut, LucideIcon } from 'lucide-react';
+import { TrexaLogo } from '../ui/logo';
+import { LogOut, LucideIcon } from 'lucide-react';
 
 interface MenuItem {
   label: string;
@@ -29,8 +30,7 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Zap className="h-8 w-8 text-indigo-600" />
-              <span className="text-2xl">Trexa</span>
+              <TrexaLogo className="h-8 w-8 text-indigo-600" />
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">

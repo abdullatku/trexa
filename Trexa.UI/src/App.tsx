@@ -6,6 +6,8 @@ import { SignInPage } from './components/pages/SignInPage';
 import { SignUpPage } from './components/pages/SignUpPage';
 import { SignUpConfirmationPage } from './components/pages/SignUpConfirmationPage';
 import { EmailVerificationPage } from './components/pages/EmailVerificationPage';
+import { ForgotPasswordPage } from './components/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './components/pages/ResetPasswordPage';
 import { StudentDashboard } from './components/pages/StudentDashboard';
 import { InterviewerDashboard } from './components/pages/InterviewerDashboard';
 import { AdminDashboard } from './components/pages/AdminDashboard';
@@ -23,6 +25,8 @@ export default function App() {
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/signup/confirmation" element={<SignUpConfirmationPage />} />
           <Route path="/verify-email" element={<EmailVerificationPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           <Route
             path="/student/*"

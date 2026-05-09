@@ -60,6 +60,18 @@ public sealed class DynamoUserRepository : IUserRepository
         return users.Select(item => ToDomain(item, keyName)).FirstOrDefault();
     }
 
+    public async Task<ApplicationUser?> FindByPasswordResetTokenAsync(string token, CancellationToken cancellationToken = default)
+    {
+        var keyName = await GetHashKeyNameAsync(cancellationToken);
+        var users = await ScanAsync(
+            filterExpression: "#resetToken = :token",
+            expressionNames: new Dictionary<string, string> { ["#resetToken"] = "PasswordResetToken" },
+            expressionValues: new Dictionary<string, AttributeValue> { [":token"] = new(token) },
+            cancellationToken: cancellationToken);
+
+        return users.Select(item => ToDomain(item, keyName)).FirstOrDefault();
+    }
+
     public async Task<IReadOnlyList<ApplicationUser>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var keyName = await GetHashKeyNameAsync(cancellationToken);
@@ -231,6 +243,16 @@ public sealed class DynamoUserRepository : IUserRepository
             item["EmailVerificationTokenExpiresAt"] = new(user.EmailVerificationTokenExpiresAt.Value.ToString("O"));
         }
 
+        if (!string.IsNullOrWhiteSpace(user.PasswordResetToken))
+        {
+            item["PasswordResetToken"] = new(user.PasswordResetToken);
+        }
+
+        if (user.PasswordResetTokenExpiresAt.HasValue)
+        {
+            item["PasswordResetTokenExpiresAt"] = new(user.PasswordResetTokenExpiresAt.Value.ToString("O"));
+        }
+
         if (user.TechStacks is { Count: > 0 })
         {
             item["TechStacks"] = new AttributeValue { SS = user.TechStacks };
@@ -261,7 +283,9 @@ public sealed class DynamoUserRepository : IUserRepository
             Company = GetString(item, "Company"),
             EmailVerified = GetBool(item, "EmailVerified"),
             EmailVerificationToken = GetString(item, "EmailVerificationToken"),
-            EmailVerificationTokenExpiresAt = ParseDate(GetString(item, "EmailVerificationTokenExpiresAt"))
+            EmailVerificationTokenExpiresAt = ParseDate(GetString(item, "EmailVerificationTokenExpiresAt")),
+            PasswordResetToken = GetString(item, "PasswordResetToken"),
+            PasswordResetTokenExpiresAt = ParseDate(GetString(item, "PasswordResetTokenExpiresAt"))
         };
     }
 

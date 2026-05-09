@@ -189,6 +189,66 @@ public sealed class AuthService : IAuthService
         return AuthServiceResult<UserProfile>.Ok(BuildUserProfile(user));
     }
 
+    public async Task<AuthServiceResult<string>> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status400BadRequest, "Email is required");
+        }
+
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await _userRepository.FindByEmailAsync(email, cancellationToken);
+        if (user is null)
+        {
+            // Don't reveal if email exists or not for security
+            return AuthServiceResult<string>.Ok("If the email exists, a password reset link has been sent");
+        }
+
+        var resetToken = GenerateVerificationToken();
+        var resetExpiresAt = DateTime.UtcNow.AddHours(1); // 1 hour expiry
+
+        user.PasswordResetToken = resetToken;
+        user.PasswordResetTokenExpiresAt = resetExpiresAt;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _userRepository.UpdateAsync(user, cancellationToken);
+        await SendPasswordResetEmailAsync(user, resetToken, cancellationToken);
+
+        return AuthServiceResult<string>.Ok("If the email exists, a password reset link has been sent");
+    }
+
+    public async Task<AuthServiceResult<string>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status400BadRequest, "Token and new password are required");
+        }
+
+        var user = await _userRepository.FindByPasswordResetTokenAsync(request.Token.Trim(), cancellationToken);
+        if (user is null)
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status400BadRequest, "Invalid or expired token");
+        }
+
+        if (user.PasswordResetTokenExpiresAt.HasValue && user.PasswordResetTokenExpiresAt.Value < DateTime.UtcNow)
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status400BadRequest, "Token has expired");
+        }
+
+        // Hash the new password
+        var passwordHasher = new Microsoft.AspNetCore.Identity.PasswordHasher<ApplicationUser>();
+        user.PasswordHash = passwordHasher.HashPassword(user, request.NewPassword);
+
+        // Clear the reset token
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiresAt = null;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        return AuthServiceResult<string>.Ok("Password reset successfully");
+    }
+
     private async Task<ApplicationUser?> GetCurrentUserAsync(ClaimsPrincipal principal, CancellationToken cancellationToken)
     {
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -215,6 +275,21 @@ public sealed class AuthService : IAuthService
         await _emailService.SendAsync([recipient], subject, body, cancellationToken);
     }
 
+    private async Task SendPasswordResetEmailAsync(ApplicationUser user, string token, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email) || string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
+        var link = BuildPasswordResetLink(token);
+        var subject = "Reset your Trexa password";
+        var body = $"Hello {user.Name},\n\nYou requested a password reset. Click the link below to reset your password:\n{link}\n\nThis link expires in 1 hour.\n\nIf you didn't request this, please ignore this email.";
+        var recipient = new EmailRecipient { Email = user.Email, Name = user.Name };
+
+        await _emailService.SendAsync([recipient], subject, body, cancellationToken);
+    }
+
     private string BuildVerificationLink(string token)
     {
         var baseUrl = string.IsNullOrWhiteSpace(_emailSettings.VerificationBaseUrl)
@@ -222,6 +297,15 @@ public sealed class AuthService : IAuthService
             : _emailSettings.VerificationBaseUrl.TrimEnd('/');
 
         return $"{baseUrl}/verify-email?token={Uri.EscapeDataString(token)}";
+    }
+
+    private string BuildPasswordResetLink(string token)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_emailSettings.VerificationBaseUrl)
+            ? "http://localhost:5264"
+            : _emailSettings.VerificationBaseUrl.TrimEnd('/');
+
+        return $"{baseUrl}/reset-password?token={Uri.EscapeDataString(token)}";
     }
 
     private static string GenerateVerificationToken() => Guid.NewGuid().ToString("N");

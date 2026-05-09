@@ -78,6 +78,32 @@ public sealed class AuthController : ControllerBase
         return Ok(new { message = result.Data });
     }
 
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.ForgotPasswordAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            return StatusCode(result.StatusCode, new { error = result.Error });
+        }
+
+        return Ok(new { message = result.Data });
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.ResetPasswordAsync(request, cancellationToken);
+        if (!result.Success)
+        {
+            return StatusCode(result.StatusCode, new { error = result.Error });
+        }
+
+        return Ok(new { message = result.Data });
+    }
+
     [HttpGet("profile")]
     [Authorize]
     public async Task<IActionResult> Profile(CancellationToken cancellationToken)

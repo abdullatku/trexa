@@ -16,6 +16,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,6 +101,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchProfile(token);
   };
 
+  const forgotPassword = async (email: string) => {
+    const response = await fetch(apiUrl('/auth/forgot-password'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send reset password email');
+    }
+  };
+
+  const resetPassword = async (token: string, newPassword: string) => {
+    const response = await fetch(apiUrl('/auth/reset-password'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to reset password');
+    }
+  };
+
   const signOut = async () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     setUser(null);
@@ -106,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signOut, refreshProfile, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/button';
-import { GraduationCap, Users, Calendar, CheckCircle } from 'lucide-react';
+import { TrexaLogo } from '../ui/logo';
+import { Users, Calendar, CheckCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
 export function LandingPage() {
@@ -27,8 +28,7 @@ export function LandingPage() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <GraduationCap className="h-8 w-8 text-indigo-600" />
-            <span className="text-2xl">Trexa</span>
+            <TrexaLogo className="text-indigo-600" />
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => navigate('/signin')}>

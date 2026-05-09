@@ -7,6 +7,7 @@ public interface IUserRepository
     Task<ApplicationUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ApplicationUser?> FindByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<ApplicationUser?> FindByEmailVerificationTokenAsync(string token, CancellationToken cancellationToken = default);
+    Task<ApplicationUser?> FindByPasswordResetTokenAsync(string token, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ApplicationUser>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ApplicationUser>> GetByRoleAsync(string role, CancellationToken cancellationToken = default);
     Task CreateAsync(ApplicationUser user, string password, CancellationToken cancellationToken = default);
