@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/button';
 import { TrexaLogo } from '../ui/logo';
@@ -7,6 +8,8 @@ import { LogOut, LucideIcon, Menu, X } from 'lucide-react';
 interface MenuItem {
   label: string;
   icon: LucideIcon;
+  path: string;
+  exact?: boolean;
   onClick: () => void;
 }
 
@@ -18,6 +21,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ title, menuItems, children }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -28,6 +32,17 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
   const handleMenuItemClick = (onClick: () => void) => {
     setMobileMenuOpen(false);
     onClick();
+  };
+
+  const isActiveItem = (item: MenuItem) => {
+    const itemPath = item.path.replace(/\/$/, '');
+    const currentPath = location.pathname.replace(/\/$/, '');
+
+    if (currentPath === itemPath) {
+      return true;
+    }
+
+    return !item.exact && itemPath !== '' && currentPath.startsWith(`${itemPath}/`);
   };
 
   return (
@@ -95,18 +110,23 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
               </Button>
             </div>
             <nav className="dashboard-mobile-nav">
-              {menuItems.map((item, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleMenuItemClick(item.onClick)}
-                  className="sidebar-nav-item"
-                >
-                  <span className="sidebar-nav-icon">
-                    <item.icon className="h-5 w-5" />
-                  </span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              {menuItems.map((item, index) => {
+                const isActive = isActiveItem(item);
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleMenuItemClick(item.onClick)}
+                    className={`sidebar-nav-item ${isActive ? 'is-active' : ''}`}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <span className="sidebar-nav-icon">
+                      <item.icon className="h-5 w-5" />
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </nav>
           </div>
         </div>
@@ -123,18 +143,23 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
                   <h2 className="sidebar-heading">{title}</h2>
                 </div>
                 <nav className="dashboard-nav space-y-2">
-                  {menuItems.map((item, index) => (
-                    <button
-                      key={index}
-                      onClick={item.onClick}
-                      className="sidebar-nav-item"
-                    >
-                      <span className="sidebar-nav-icon">
-                        <item.icon className="h-5 w-5" />
-                      </span>
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
+                  {menuItems.map((item, index) => {
+                    const isActive = isActiveItem(item);
+
+                    return (
+                      <button
+                        key={index}
+                        onClick={item.onClick}
+                        className={`sidebar-nav-item ${isActive ? 'is-active' : ''}`}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <span className="sidebar-nav-icon">
+                          <item.icon className="h-5 w-5" />
+                        </span>
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </nav>
               </div>
             </aside>

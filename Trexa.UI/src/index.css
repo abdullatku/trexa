@@ -2993,6 +2993,7 @@ html {
   gap: calc(var(--spacing) * 3);
   min-height: calc(var(--spacing) * 11);
   padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  position: relative;
   text-align: left;
   transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
   width: 100%;
@@ -3023,6 +3024,37 @@ html {
   background: var(--color-indigo-600);
   border-color: var(--color-indigo-600);
   color: var(--color-white);
+}
+
+.sidebar-nav-item.is-active {
+  background: rgba(79, 70, 229, .1);
+  border-color: rgba(79, 70, 229, .18);
+  box-shadow: 0 10px 22px rgba(79, 70, 229, .08);
+  color: var(--color-indigo-700);
+}
+
+.sidebar-nav-item.is-active::before {
+  background: var(--color-indigo-600);
+  border-radius: 999px;
+  bottom: calc(var(--spacing) * 2);
+  content: "";
+  left: calc(var(--spacing) * 1.5);
+  position: absolute;
+  top: calc(var(--spacing) * 2);
+  width: 3px;
+}
+
+.sidebar-nav-item.is-active .sidebar-nav-icon {
+  background: var(--color-indigo-600);
+  border-color: var(--color-indigo-600);
+  color: var(--color-white);
+}
+
+.sidebar-nav-item.is-active:hover,
+.sidebar-nav-item.is-active:focus-visible {
+  background: rgba(79, 70, 229, .14);
+  border-color: rgba(79, 70, 229, .24);
+  color: var(--color-indigo-700);
 }
 
 .admin-pagination {

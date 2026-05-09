@@ -12,16 +12,20 @@ export function InterviewerDashboard() {
     {
       label: 'My Interviews',
       icon: Calendar,
+      path: '/interviewer',
+      exact: true,
       onClick: () => navigate('/interviewer'),
     },
     {
       label: 'Availability',
       icon: Clock,
+      path: '/interviewer/availability',
       onClick: () => navigate('/interviewer/availability'),
     },
     {
       label: 'Profile',
       icon: User,
+      path: '/interviewer/profile',
       onClick: () => navigate('/interviewer/profile'),
     },
   ];

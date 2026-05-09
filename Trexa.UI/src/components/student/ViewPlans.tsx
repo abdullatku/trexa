@@ -109,6 +109,12 @@ export function ViewPlans() {
   };
 
   const handleSubscribe = async (plan: Plan) => {
+    const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
+
+    if (isCurrentPlan) {
+      return;
+    }
+
     // Handle free plans differently - no payment needed
     if (plan.price === 0) {
       setSubscribing(plan.id);
@@ -303,12 +309,12 @@ export function ViewPlans() {
       ) : (
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => {
-            const isCurrentPlan = activePlan?.id === plan.id;
+            const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
             
             return (
               <Card 
                 key={plan.id} 
-                className={`flex flex-col ${isCurrentPlan ? 'border-green-500 border-2' : ''}`}
+                className={`h-full flex flex-col ${isCurrentPlan ? 'border-green-500 border-2' : ''}`}
               >
                 <CardHeader>
                   <div className="flex justify-between items-start mb-2">
@@ -328,8 +334,8 @@ export function ViewPlans() {
                     )}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1 space-y-4">
-                  <div className="space-y-2">
+                <CardContent className="flex-1 flex flex-col">
+                  <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-green-600" />
                       <span>{plan.interviews} mock interviews</span>
@@ -342,7 +348,7 @@ export function ViewPlans() {
                     ))}
                   </div>
                   <Button 
-                    className="w-full mt-auto" 
+                    className="w-full mt-4" 
                     onClick={() => handleSubscribe(plan)}
                     disabled={isCurrentPlan || subscribing === plan.id}
                   >

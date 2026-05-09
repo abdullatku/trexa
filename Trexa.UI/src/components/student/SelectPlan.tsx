@@ -18,7 +18,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface Plan {
   id: string;
@@ -27,6 +27,16 @@ interface Plan {
   interviews: number;
   features: string[];
   duration: string;
+}
+
+interface Subscription {
+  id: string;
+  userId: string;
+  planId: string;
+  status: string;
+  interviewsRemaining: number;
+  startDate: string;
+  endDate: string;
 }
 
 interface SelectPlanProps {
@@ -45,6 +55,7 @@ export function SelectPlan({
   const navigate = useNavigate();
   const { accessToken, user } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(
     null,
@@ -53,6 +64,7 @@ export function SelectPlan({
   useEffect(() => {
     if (accessToken) {
       fetchPlans();
+      fetchSubscription();
     }
 
     // Load Razorpay script
@@ -101,7 +113,28 @@ export function SelectPlan({
     }
   };
 
+  const fetchSubscription = async () => {
+    if (!accessToken) return;
+
+    try {
+      const response = await fetch(`/subscription`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      const data = await response.json();
+      setSubscription(data.subscription || null);
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+    }
+  };
+
   const handleSubscribe = async (plan: Plan) => {
+    const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
+
+    if (isCurrentPlan) {
+      return;
+    }
+
     if (!window.Razorpay) {
       toast.error(
         "Payment gateway is loading. Please try again in a moment.",
@@ -284,60 +317,66 @@ export function SelectPlan({
       ) : (
         <>
           <div className="grid md:grid-cols-3 gap-6">
-            {plans.map((plan) => (
-              <Card
-                key={plan.id}
-                className="flex flex-col hover:shadow-lg transition-shadow"
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start mb-2">
-                    <CardTitle>{plan.name}</CardTitle>
-                    <Badge variant="secondary">
-                      {plan.duration}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    <span className="text-3xl">
-                      ₹{plan.price}
-                    </span>
-                    <span className="text-gray-600">
-                      /{plan.duration}
-                    </span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <span>
-                        {plan.interviews} mock interviews
-                      </span>
+            {plans.map((plan) => {
+              const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
+
+              return (
+                <Card
+                  key={plan.id}
+                  className={`h-full flex flex-col hover:shadow-lg transition-shadow ${isCurrentPlan ? 'border-green-500 border-2' : ''}`}
+                >
+                  <CardHeader>
+                    <div className="flex justify-between items-start mb-2">
+                      <CardTitle>{plan.name}</CardTitle>
+                      <Badge variant={isCurrentPlan ? 'default' : 'secondary'}>
+                        {isCurrentPlan ? 'Active' : plan.duration}
+                      </Badge>
                     </div>
-                    {plan.features.map((feature, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2"
-                      >
+                    <CardDescription>
+                      <span className="text-3xl">
+                        ₹{plan.price}
+                      </span>
+                      <span className="text-gray-600">
+                        /{plan.duration}
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center gap-2">
                         <Check className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">
-                          {feature}
+                        <span>
+                          {plan.interviews} mock interviews
                         </span>
                       </div>
-                    ))}
-                  </div>
-                  <Button
-                    className="w-full mt-4"
-                    onClick={() => handleSubscribe(plan)}
-                    disabled={subscribing === plan.id}
-                  >
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    {subscribing === plan.id
-                      ? "Processing..."
-                      : "Subscribe Now"}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                      {plan.features.map((feature, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2"
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">
+                            {feature}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      className="w-full mt-4"
+                      onClick={() => handleSubscribe(plan)}
+                      disabled={isCurrentPlan || subscribing === plan.id}
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      {isCurrentPlan
+                        ? "Current Plan"
+                        : subscribing === plan.id
+                        ? "Processing..."
+                        : "Subscribe Now"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {afterSignup && (

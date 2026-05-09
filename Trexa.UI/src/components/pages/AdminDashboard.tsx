@@ -15,31 +15,38 @@ export function AdminDashboard() {
     {
       label: 'Analytics',
       icon: BarChart3,
+      path: '/admin',
+      exact: true,
       onClick: () => navigate('/admin'),
     },
     {
       label: 'Users',
       icon: Users,
+      path: '/admin/users',
       onClick: () => navigate('/admin/users'),
     },
     {
       label: 'Interviews',
       icon: Calendar,
+      path: '/admin/interviews',
       onClick: () => navigate('/admin/interviews'),
     },
     {
       label: 'Designations',
       icon: Briefcase,
+      path: '/admin/designations',
       onClick: () => navigate('/admin/designations'),
     },
     {
       label: 'Feedback Forms',
       icon: FileText,
+      path: '/admin/feedback-forms',
       onClick: () => navigate('/admin/feedback-forms'),
     },
     {
       label: 'Plans',
       icon: CreditCard,
+      path: '/admin/plans',
       onClick: () => navigate('/admin/plans'),
     },
   ];

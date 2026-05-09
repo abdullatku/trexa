@@ -26,14 +26,21 @@ It now uses:
    - `dotnet run`
 
 Default local API base URL:
-- `http://localhost:5264/make-server-2eb59763`
+- `http://localhost:5264/api`
 
 ### Frontend API URL
 
 Frontend calls are routed through `VITE_API_BASE_URL`.
 
-Use `.env.example` as reference:
-- `VITE_API_BASE_URL=http://localhost:5264/make-server-2eb59763`
+Vite loads real env files automatically. This repo includes:
+- `.env.development` for `npm run dev`
+- `.env.production` for `npm run build`
+- `.env.example` as a template
+
+Use `.env.local` or `.env.production.local` for machine-specific overrides. Those files are ignored by git.
+
+Required public frontend variables:
+- `VITE_API_BASE_URL=http://localhost:5264/api`
 - `VITE_RAZORPAY_SCRIPT_URL=https://checkout.razorpay.com/v1/checkout.js`
 
 ## Optional: Use DynamoDB for plans/subscriptions

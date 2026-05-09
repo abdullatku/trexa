@@ -13,16 +13,20 @@ export function StudentDashboard() {
     {
       label: 'My Interviews',
       icon: Calendar,
+      path: '/student',
+      exact: true,
       onClick: () => navigate('/student'),
     },
     {
       label: 'Plans & Pricing',
       icon: CreditCard,
+      path: '/student/plans',
       onClick: () => navigate('/student/plans'),
     },
     {
       label: 'Profile',
       icon: User,
+      path: '/student/profile',
       onClick: () => navigate('/student/profile'),
     },
   ];
