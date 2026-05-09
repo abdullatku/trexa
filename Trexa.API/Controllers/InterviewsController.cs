@@ -154,6 +154,110 @@ public sealed class InterviewsController : ControllerBase
         return Ok(new { interviews = filtered.OrderByDescending(x => x.CreatedAt).ToList() });
     }
 
+    [HttpGet("interviewer-payments")]
+    public async Task<IActionResult> GetInterviewerPayments(CancellationToken cancellationToken)
+    {
+        var role = User.GetRole();
+        var userId = User.GetUserId();
+
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(role))
+        {
+            return Unauthorized();
+        }
+
+        if (role is not ("admin" or "interviewer"))
+        {
+            return Forbid();
+        }
+
+        var interviews = await _store.ScanAsync<Interview>(_settings.InterviewsTable, cancellationToken);
+        var filtered = interviews
+            .Where(interview => !string.IsNullOrWhiteSpace(interview.InterviewerId))
+            .Where(interview => role == "admin" || interview.InterviewerPaymentReleased)
+            .Where(interview => role == "admin" || interview.InterviewerId == userId)
+            .ToList();
+
+        var users = await _userRepository.GetAllAsync(cancellationToken);
+        var userLookup = users.ToDictionary(user => user.Id.ToString(), StringComparer.OrdinalIgnoreCase);
+
+        var response = filtered
+            .OrderByDescending(interview => interview.ScheduledDate == "pending" ? interview.CreatedAt : (DateTime.TryParse(interview.ScheduledDate, out var scheduledAt) ? scheduledAt : interview.CreatedAt))
+            .Select(interview =>
+            {
+                userLookup.TryGetValue(interview.StudentId, out var student);
+                ApplicationUser? interviewer = null;
+                if (!string.IsNullOrWhiteSpace(interview.InterviewerId))
+                {
+                    userLookup.TryGetValue(interview.InterviewerId, out interviewer);
+                }
+
+                var amount = interview.InterviewerFee ?? interviewer?.DefaultInterviewerFee ?? 0;
+
+                return new
+                {
+                    id = interview.Id,
+                    interviewId = interview.Id,
+                    studentId = interview.StudentId,
+                    studentName = student?.Name,
+                    studentEmail = student?.Email,
+                    interviewerId = interview.InterviewerId,
+                    interviewerName = interviewer?.Name,
+                    interviewerEmail = interviewer?.Email,
+                    amount,
+                    currency = "INR",
+                    status = interview.Status,
+                    released = interview.InterviewerPaymentReleased,
+                    releasedAt = interview.InterviewerPaymentReleasedAt,
+                    scheduledDate = interview.ScheduledDate,
+                    createdAt = interview.CreatedAt
+                };
+            })
+            .ToList();
+
+        return Ok(new
+        {
+            payments = response,
+            summary = new
+            {
+                count = response.Count,
+                totalAssigned = Math.Round(response.Where(payment => payment.status != "cancelled").Sum(payment => payment.amount), 2),
+                totalCompleted = Math.Round(response.Where(payment => payment.status == "completed").Sum(payment => payment.amount), 2),
+                totalReleased = Math.Round(response.Where(payment => payment.released).Sum(payment => payment.amount), 2)
+            }
+        });
+    }
+
+    [HttpPost("admin/interviewer-payments/{interviewId}/release")]
+    public async Task<IActionResult> ReleaseInterviewerPayment(string interviewId, CancellationToken cancellationToken)
+    {
+        if (User.GetRole() != "admin")
+        {
+            return Forbid();
+        }
+
+        var interview = await _store.GetByIdAsync<Interview>(_settings.InterviewsTable, interviewId, cancellationToken);
+        if (interview is null || string.IsNullOrWhiteSpace(interview.InterviewerId))
+        {
+            return NotFound(new { error = "Assigned interview not found" });
+        }
+
+        if (interview.Status == "cancelled")
+        {
+            return BadRequest(new { error = "Cannot release payment for a cancelled interview" });
+        }
+
+        if (interview.InterviewerPaymentReleased)
+        {
+            return Ok(new { message = "Payment already released", interview });
+        }
+
+        interview.InterviewerPaymentReleased = true;
+        interview.InterviewerPaymentReleasedAt = DateTime.UtcNow;
+        await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+
+        return Ok(new { message = "Interviewer payment released successfully", interview });
+    }
+
     [HttpPut("admin/interviews/{id}/assign")]
     public async Task<IActionResult> AssignInterviewer(string id, [FromBody] AssignInterviewRequest request, CancellationToken cancellationToken)
     {
@@ -175,6 +279,9 @@ public sealed class InterviewsController : ControllerBase
 
         interview.InterviewerId = request.InterviewerId;
         interview.ScheduledDate = request.ScheduledDate;
+        interview.InterviewerFee = request.InterviewerFee.HasValue
+            ? Math.Max(0, request.InterviewerFee.Value)
+            : await GetDefaultInterviewerFeeAsync(request.InterviewerId, cancellationToken);
         interview.Status = "scheduled";
         interview.AcceptedByInterviewer = false;
 
@@ -534,6 +641,7 @@ public sealed class InterviewsController : ControllerBase
         bio = user.Bio,
         techStacks = user.TechStacks,
         company = user.Company,
+        defaultInterviewerFee = user.DefaultInterviewerFee,
         createdAt = user.CreatedAt
     };
 
@@ -550,7 +658,18 @@ public sealed class InterviewsController : ControllerBase
         string? Timezone,
         string? InterviewerId);
 
-    public sealed record AssignInterviewRequest(string InterviewerId, string ScheduledDate);
+    private async Task<decimal> GetDefaultInterviewerFeeAsync(string interviewerId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(interviewerId, out var parsedId))
+        {
+            return 0;
+        }
+
+        var interviewer = await _userRepository.GetByIdAsync(parsedId, cancellationToken);
+        return interviewer?.DefaultInterviewerFee ?? 0;
+    }
+
+    public sealed record AssignInterviewRequest(string InterviewerId, string ScheduledDate, decimal? InterviewerFee);
     public sealed record AdminRescheduleRequest(string ScheduledDate, string? Reason);
     public sealed record RescheduleRequest(string Reason);
 }

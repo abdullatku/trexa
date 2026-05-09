@@ -91,7 +91,7 @@ export function LandingPage() {
 
       {/* Hero Section */}
       <main className="landing-main max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-16">
+        <div className="landing-hero text-center mb-16">
           <h1 className="landing-title text-5xl mb-6">
             Master Your Interview Skills
           </h1>
@@ -99,10 +99,10 @@ export function LandingPage() {
             Practice with experienced interviewers across different software technologies. Get personalized feedback and improve your chances of landing your dream job.
           </p>
           <div className="landing-actions flex gap-4 justify-center">
-            <Button size="lg" onClick={() => goTo('/signup')}>
+            <Button size="lg" className="landing-cta" onClick={() => goTo('/signup')}>
               Get Started
             </Button>
-            <Button size="lg" variant="outline" onClick={() => goTo('/signin')}>
+            <Button size="lg" variant="outline" className="landing-cta" onClick={() => goTo('/signin')}>
               Sign In
             </Button>
           </div>

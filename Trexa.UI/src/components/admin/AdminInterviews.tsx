@@ -28,6 +28,7 @@ interface Interview {
   zoomJoinUrl?: string;
   zoomMeetingId?: string;
   preferredCompany?: string;
+  interviewerFee?: number | null;
 }
 
 interface User {
@@ -38,6 +39,7 @@ interface User {
   techStacks?: string[];
   linkedInProfile?: string;
   company?: string;
+  defaultInterviewerFee?: number;
 }
 
 interface Designation {
@@ -71,6 +73,7 @@ export function AdminInterviews() {
   const [loading, setLoading] = useState(true);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [selectedInterviewer, setSelectedInterviewer] = useState('');
+  const [assignmentFee, setAssignmentFee] = useState('');
   const [interviewerAvailability, setInterviewerAvailability] = useState<Availability[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
@@ -84,10 +87,20 @@ export function AdminInterviews() {
   const [updatingInterviewId, setUpdatingInterviewId] = useState<string | null>(null);
   const [pendingPage, setPendingPage] = useState(1);
   const [assignedPage, setAssignedPage] = useState(1);
+  const [pendingSearch, setPendingSearch] = useState('');
+  const [assignedSearch, setAssignedSearch] = useState('');
 
   useEffect(() => {
     fetchData();
   }, [accessToken]);
+
+  useEffect(() => {
+    setPendingPage(1);
+  }, [pendingSearch]);
+
+  useEffect(() => {
+    setAssignedPage(1);
+  }, [assignedSearch]);
 
   // Fetch availability when interviewer is selected
   useEffect(() => {
@@ -98,8 +111,21 @@ export function AdminInterviews() {
       setSelectedDate(undefined);
       setSelectedTimeSlot('');
       setAvailableTimeSlots([]);
+      setAssignmentFee('');
     }
   }, [selectedInterviewer]);
+
+  useEffect(() => {
+    if (!selectedInterviewer) return;
+
+    if (selectedInterview?.interviewerId === selectedInterviewer && selectedInterview.interviewerFee != null) {
+      setAssignmentFee(String(selectedInterview.interviewerFee));
+      return;
+    }
+
+    const interviewer = users.find(u => u.id === selectedInterviewer);
+    setAssignmentFee(String(interviewer?.defaultInterviewerFee || 0));
+  }, [selectedInterviewer, selectedInterview, users]);
 
   // Generate time slots when date is selected
   useEffect(() => {
@@ -268,6 +294,7 @@ export function AdminInterviews() {
           body: JSON.stringify({ 
             interviewerId: selectedInterviewer,
             scheduledDate: selectedTimeSlot,
+            interviewerFee: Number(assignmentFee) || 0,
           }),
         }
       );
@@ -283,6 +310,7 @@ export function AdminInterviews() {
       setSelectedInterviewer('');
       setSelectedDate(undefined);
       setSelectedTimeSlot('');
+      setAssignmentFee('');
       fetchData();
     } catch (error: any) {
       console.error('Error assigning interviewer:', error);
@@ -387,13 +415,33 @@ export function AdminInterviews() {
   const assignedInterviews = interviews.filter(
     (interview) => interview.scheduledDate !== 'pending' && interview.interviewerId
   );
-  const pendingRange = getPaginationRange(pendingPage, pendingInterviews.length, INTERVIEWS_PAGE_SIZE);
-  const assignedRange = getPaginationRange(assignedPage, assignedInterviews.length, INTERVIEWS_PAGE_SIZE);
-  const paginatedPendingInterviews = pendingInterviews.slice(
+  const matchesInterviewSearch = (interview: Interview, search: string) => {
+    const normalized = search.trim().toLowerCase();
+    if (!normalized) return true;
+
+    return [
+      getUserName(interview.studentId),
+      interview.interviewerId ? getUserName(interview.interviewerId) : '',
+      getDesignationName(interview.designationId),
+      interview.skill,
+      interview.interviewLevel,
+      interview.notes,
+      interview.status,
+      interview.scheduledDate,
+      interview.interviewerFee,
+    ]
+      .filter(value => value !== null && value !== undefined)
+      .some(value => String(value).toLowerCase().includes(normalized));
+  };
+  const filteredPendingInterviews = pendingInterviews.filter(interview => matchesInterviewSearch(interview, pendingSearch));
+  const filteredAssignedInterviews = assignedInterviews.filter(interview => matchesInterviewSearch(interview, assignedSearch));
+  const pendingRange = getPaginationRange(pendingPage, filteredPendingInterviews.length, INTERVIEWS_PAGE_SIZE);
+  const assignedRange = getPaginationRange(assignedPage, filteredAssignedInterviews.length, INTERVIEWS_PAGE_SIZE);
+  const paginatedPendingInterviews = filteredPendingInterviews.slice(
     (pendingRange.currentPage - 1) * INTERVIEWS_PAGE_SIZE,
     pendingRange.currentPage * INTERVIEWS_PAGE_SIZE
   );
-  const paginatedAssignedInterviews = assignedInterviews.slice(
+  const paginatedAssignedInterviews = filteredAssignedInterviews.slice(
     (assignedRange.currentPage - 1) * INTERVIEWS_PAGE_SIZE,
     assignedRange.currentPage * INTERVIEWS_PAGE_SIZE
   );
@@ -423,6 +471,16 @@ export function AdminInterviews() {
           {pendingInterviews.length === 0 ? (
             <p className="text-center text-gray-500 py-8">No pending interview requests</p>
           ) : (
+            <>
+            <Input
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+              placeholder="Search pending interviews by student, designation, skill, or notes"
+              className="mb-4 max-w-md"
+            />
+            {filteredPendingInterviews.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No pending interviews match your search</p>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -454,6 +512,7 @@ export function AdminInterviews() {
                             setSelectedInterviewer(interview.interviewerId ?? '');
                             setSelectedDate(undefined);
                             setSelectedTimeSlot('');
+                            setAssignmentFee(String(interview.interviewerFee ?? users.find(u => u.id === interview.interviewerId)?.defaultInterviewerFee ?? 0));
                           }}
                         >
                           <UserCheck className="h-4 w-4 mr-1" />
@@ -473,11 +532,13 @@ export function AdminInterviews() {
                 ))}
               </TableBody>
             </Table>
+            )}
+            </>
           )}
           <AdminPagination
             page={pendingPage}
             pageSize={INTERVIEWS_PAGE_SIZE}
-            totalItems={pendingInterviews.length}
+            totalItems={filteredPendingInterviews.length}
             onPageChange={setPendingPage}
           />
         </CardContent>
@@ -493,6 +554,16 @@ export function AdminInterviews() {
           {assignedInterviews.length === 0 ? (
             <p className="text-center text-gray-500 py-8">No assigned interviews</p>
           ) : (
+            <>
+            <Input
+              value={assignedSearch}
+              onChange={(e) => setAssignedSearch(e.target.value)}
+              placeholder="Search assigned interviews by student, interviewer, status, fee, or date"
+              className="mb-4 max-w-md"
+            />
+            {filteredAssignedInterviews.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No assigned interviews match your search</p>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -500,6 +571,7 @@ export function AdminInterviews() {
                   <TableHead>Designation</TableHead>
                   <TableHead>Interviewer</TableHead>
                   <TableHead>Scheduled Date</TableHead>
+                  <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -520,6 +592,7 @@ export function AdminInterviews() {
                         : 'Pending'
                       }
                     </TableCell>
+                    <TableCell>₹{Number(interview.interviewerFee || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant={interview.status === 'completed' ? 'default' : 'secondary'}>
                         {interview.status}
@@ -535,6 +608,7 @@ export function AdminInterviews() {
                             setSelectedInterviewer(interview.interviewerId ?? '');
                             setSelectedDate(undefined);
                             setSelectedTimeSlot('');
+                            setAssignmentFee(String(interview.interviewerFee ?? users.find(u => u.id === interview.interviewerId)?.defaultInterviewerFee ?? 0));
                           }}
                           disabled={interview.status === 'completed' || interview.status === 'cancelled'}
                         >
@@ -563,11 +637,13 @@ export function AdminInterviews() {
                 ))}
               </TableBody>
             </Table>
+            )}
+            </>
           )}
           <AdminPagination
             page={assignedPage}
             pageSize={INTERVIEWS_PAGE_SIZE}
-            totalItems={assignedInterviews.length}
+            totalItems={filteredAssignedInterviews.length}
             onPageChange={setAssignedPage}
           />
         </CardContent>
@@ -580,6 +656,7 @@ export function AdminInterviews() {
           setSelectedInterviewer('');
           setSelectedDate(undefined);
           setSelectedTimeSlot('');
+          setAssignmentFee('');
         }
       }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -670,6 +747,24 @@ export function AdminInterviews() {
                 )}
               </div>
 
+              {selectedInterviewer && (
+                <div>
+                  <Label htmlFor="assignmentFee">Interview Fee *</Label>
+                  <Input
+                    id="assignmentFee"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={assignmentFee}
+                    onChange={(e) => setAssignmentFee(e.target.value)}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Defaults from the selected interviewer's fee and can be changed for this interview.
+                  </p>
+                </div>
+              )}
+
               {/* Date and Time Selection */}
               {selectedInterviewer && (
                 <>
@@ -753,6 +848,7 @@ export function AdminInterviews() {
                   setSelectedInterviewer('');
                   setSelectedDate(undefined);
                   setSelectedTimeSlot('');
+                  setAssignmentFee('');
                 }}>
                   Cancel
                 </Button>

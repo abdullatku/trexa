@@ -15,6 +15,7 @@ public sealed class ApplicationUser
     public string? Phone { get; set; }
     public List<string> TechStacks { get; set; } = [];
     public string? Company { get; set; }
+    public decimal DefaultInterviewerFee { get; set; }
     public bool EmailVerified { get; set; }
     public string? EmailVerificationToken { get; set; }
     public DateTime? EmailVerificationTokenExpiresAt { get; set; }

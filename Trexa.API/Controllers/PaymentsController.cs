@@ -20,6 +20,7 @@ namespace Trexa.Api.Controllers;
 public sealed class PaymentsController : ControllerBase
 {
     private readonly IDynamoDocumentStore _store;
+    private readonly IUserRepository _userRepository;
     private readonly IPlansRepository _plansRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly DynamoDbSettings _dynamoSettings;
@@ -28,6 +29,7 @@ public sealed class PaymentsController : ControllerBase
 
     public PaymentsController(
         IDynamoDocumentStore store,
+        IUserRepository userRepository,
         IPlansRepository plansRepository,
         ISubscriptionRepository subscriptionRepository,
         IOptions<DynamoDbSettings> dynamoSettings,
@@ -35,11 +37,94 @@ public sealed class PaymentsController : ControllerBase
         IHttpClientFactory httpClientFactory)
     {
         _store = store;
+        _userRepository = userRepository;
         _plansRepository = plansRepository;
         _subscriptionRepository = subscriptionRepository;
         _dynamoSettings = dynamoSettings.Value;
         _razorpaySettings = razorpaySettings.Value;
         _httpClientFactory = httpClientFactory;
+    }
+
+    [HttpGet("payments")]
+    public async Task<IActionResult> GetPayments(CancellationToken cancellationToken)
+    {
+        var userId = User.GetUserId();
+        var role = User.GetRole();
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var payments = await _store.ScanAsync<PaymentRecord>(_dynamoSettings.PaymentsTable, cancellationToken);
+
+        if (role == "student")
+        {
+            payments = payments.Where(payment => payment.UserId == userId).ToList();
+        }
+        else if (role == "interviewer")
+        {
+            var interviews = await _store.ScanAsync<Interview>(_dynamoSettings.InterviewsTable, cancellationToken);
+            var assignedStudentIds = interviews
+                .Where(interview => interview.InterviewerId == userId)
+                .Select(interview => interview.StudentId)
+                .Where(studentId => !string.IsNullOrWhiteSpace(studentId))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            payments = payments
+                .Where(payment => payment.Status == "paid" && assignedStudentIds.Contains(payment.UserId))
+                .ToList();
+        }
+        else if (role != "admin")
+        {
+            return Forbid();
+        }
+
+        var users = await _userRepository.GetAllAsync(cancellationToken);
+        var userLookup = users.ToDictionary(user => user.Id.ToString(), StringComparer.OrdinalIgnoreCase);
+
+        var plans = await _plansRepository.GetPlansAsync(cancellationToken);
+        var planLookup = plans.ToDictionary(plan => plan.Id, StringComparer.OrdinalIgnoreCase);
+
+        var response = payments
+            .OrderByDescending(payment => payment.VerifiedAt ?? payment.CreatedAt)
+            .Select(payment =>
+            {
+                userLookup.TryGetValue(payment.UserId, out var user);
+                planLookup.TryGetValue(payment.PlanId, out var plan);
+
+                return new
+                {
+                    id = payment.Id,
+                    userId = payment.UserId,
+                    userName = user?.Name,
+                    userEmail = user?.Email,
+                    planId = payment.PlanId,
+                    planName = plan?.Name,
+                    orderId = payment.OrderId,
+                    paymentId = payment.PaymentId,
+                    amount = payment.Amount,
+                    amountMajor = Math.Round(payment.Amount / 100m, 2),
+                    currency = payment.Currency,
+                    status = payment.Status,
+                    gatewayStatus = payment.GatewayStatus,
+                    failureReason = payment.FailureReason,
+                    verifiedAt = payment.VerifiedAt,
+                    createdAt = payment.CreatedAt
+                };
+            })
+            .ToList();
+
+        var totalPaid = response
+            .Where(payment => payment.status == "paid")
+            .Sum(payment => payment.amountMajor);
+
+        return Ok(new
+        {
+            payments = response,
+            summary = new
+            {
+                count = response.Count,
+                paidCount = response.Count(payment => payment.status == "paid"),
+                totalPaid = Math.Round(totalPaid, 2)
+            }
+        });
     }
 
     [HttpGet("razorpay-config")]

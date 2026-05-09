@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
-import { Calendar, Clock, FileText, Video, CheckCircle, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, FileText, Video, CheckCircle, XCircle, ChevronLeft, ChevronRight, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
 interface Interview {
@@ -29,6 +29,9 @@ interface Interview {
   level?: string;
   interviewLevel?: string;
   cvUrl?: string;
+  interviewerFee?: number | null;
+  interviewerPaymentReleased?: boolean;
+  interviewerPaymentReleasedAt?: string | null;
 }
 
 interface Designation {
@@ -142,6 +145,26 @@ export function InterviewerInterviewsList() {
   const getStudentName = (studentId: string) => {
     const student = students.find((s) => s.id === studentId);
     return student?.name || 'Unknown Student';
+  };
+
+  const formatInterviewFee = (amount?: number | null) => {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  };
+
+  const formatScheduledDate = (value: string) => {
+    if (!value || value === 'pending') return 'Pending';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Pending' : date.toLocaleDateString();
+  };
+
+  const formatScheduledTime = (value: string) => {
+    if (!value || value === 'pending') return 'Pending';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Pending' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   // Calculate pagination
@@ -394,44 +417,63 @@ export function InterviewerInterviewsList() {
       ) : (
         <div className="space-y-4">
           {/* Grid layout - 2 cards per row with compact design */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
             {currentInterviews.map(interview => (
-              <Card key={interview.id} className="hover:shadow-md transition-shadow">
+              <Card key={interview.id} className="hover:shadow-md transition-shadow h-full flex flex-col">
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-base truncate">{getDesignationName(interview.designationId)}</CardTitle>
-                      <CardDescription className="text-xs">Interview ID: {interview.id || 'N/A'}</CardDescription>
-                      <CardDescription className="text-xs">Student: {getStudentName(interview.studentId)}</CardDescription>
-                      <CardDescription className="text-xs">Student ID: {interview.studentId || 'N/A'}</CardDescription>
+                      <CardDescription className="text-xs truncate">Interview ID: {interview.id || 'N/A'}</CardDescription>
                     </div>
                     <Badge variant={interview.status === 'completed' ? 'default' : 'secondary'} className="text-xs shrink-0">
                       {interview.status}
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-2 pt-0">
-                  {/* Date and Time - Compact */}
-                  <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded px-2 py-1.5">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(interview.scheduledDate).toLocaleDateString()}</span>
+                <CardContent className="space-y-3 pt-0 flex-1 flex flex-col">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
+                      <div className="text-gray-500">Student</div>
+                      <div className="font-medium truncate">{getStudentName(interview.studentId)}</div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{new Date(interview.scheduledDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
+                      <div className="text-gray-500">Fee</div>
+                      <div className="font-medium flex items-center gap-1">
+                        <IndianRupee className="h-3 w-3" />
+                        {formatInterviewFee(interview.interviewerFee).replace(/^₹/, '')}
+                      </div>
+                    </div>
+                    <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
+                      <div className="text-gray-500 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        Date
+                      </div>
+                      <div className="font-medium truncate">{formatScheduledDate(interview.scheduledDate)}</div>
+                    </div>
+                    <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
+                      <div className="text-gray-500 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Time
+                      </div>
+                      <div className="font-medium truncate">{formatScheduledTime(interview.scheduledDate)}</div>
                     </div>
                   </div>
 
                   {/* Skills - Inline badges */}
-                  {interview.skill && (
-                    <div className="flex flex-wrap gap-1">
-                      <Badge variant="outline" className="text-xs">{interview.skill}</Badge>
+                  <div className="flex flex-wrap gap-1 min-h-6">
+                    {interview.skill ? (
+                      <Badge variant="outline" className="text-xs max-w-full truncate">{interview.skill}</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-gray-500">No skill</Badge>
+                    )}
                       {interview.interviewLevel && (
                         <Badge variant="outline" className="text-xs bg-blue-50">{interview.interviewLevel}</Badge>
                       )}
-                    </div>
-                  )}
+                    {interview.interviewerPaymentReleased && (
+                      <Badge className="text-xs bg-green-100 text-green-800">Payment Released</Badge>
+                    )}
+                  </div>
 
                   {/* Action Required - New Assignment */}
                   {!interview.acceptedByInterviewer && interview.status !== 'completed' && interview.status !== 'declined' && (
@@ -459,7 +501,7 @@ export function InterviewerInterviewsList() {
                   )}
 
                   {/* All Action Buttons in One Row */}
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5 mt-auto pt-2 border-t">
                     {/* Create Meeting Button */}
                     {interview.acceptedByInterviewer && !interview.zoomJoinUrl && interview.status !== 'completed' && (
                       <Button

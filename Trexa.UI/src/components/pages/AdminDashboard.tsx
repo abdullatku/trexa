@@ -4,6 +4,7 @@ import { AdminInterviews } from '../admin/AdminInterviews';
 import { AdminDesignations } from '../admin/AdminDesignations';
 import { AdminFeedbackForms } from '../admin/AdminFeedbackForms';
 import { AdminPlans } from '../admin/AdminPlans';
+import { AdminPayments } from '../admin/AdminPayments';
 import { AdminAnalytics } from '../admin/AdminAnalytics';
 import { DashboardLayout } from '../layout/DashboardLayout';
 import { Users, Calendar, Briefcase, FileText, CreditCard, BarChart3 } from 'lucide-react';
@@ -49,6 +50,12 @@ export function AdminDashboard() {
       path: '/admin/plans',
       onClick: () => navigate('/admin/plans'),
     },
+    {
+      label: 'Payments',
+      icon: CreditCard,
+      path: '/admin/payments',
+      onClick: () => navigate('/admin/payments'),
+    },
   ];
 
   return (
@@ -60,6 +67,7 @@ export function AdminDashboard() {
         <Route path="designations" element={<AdminDesignations />} />
         <Route path="feedback-forms" element={<AdminFeedbackForms />} />
         <Route path="plans" element={<AdminPlans />} />
+        <Route path="payments" element={<AdminPayments />} />
       </Routes>
     </DashboardLayout>
   );

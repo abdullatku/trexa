@@ -429,16 +429,16 @@ export function AdminPlans() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
+    <div className="admin-plans-page space-y-6">
+      <div className="admin-plans-header flex justify-between items-center gap-4">
+        <div className="admin-plans-heading min-w-0">
           <h2 className="text-2xl mb-2">Plan Management</h2>
           <p className="text-gray-600">Create and manage subscription plans and company levels</p>
         </div>
-        <div className="flex gap-2">
+        <div className="admin-plans-actions flex gap-2">
           <Dialog open={companyLevelDialogOpen} onOpenChange={setCompanyLevelDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="admin-plans-action">
                 <Building2 className="h-4 w-4 mr-2" />
                 Manage Company Levels
               </Button>
@@ -575,7 +575,7 @@ export function AdminPlans() {
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="admin-plans-action">
                 <CreditCard className="h-4 w-4 mr-2" />
                 Create Plan
               </Button>
@@ -1056,13 +1056,13 @@ export function AdminPlans() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid md:grid-cols-3 gap-6 items-start">
+        <div className="admin-plans-grid grid md:grid-cols-3 gap-6 items-start">
           {paginatedPlans.map((plan) => (
-            <Card key={plan.id} className={`min-h-[450px] flex flex-col ${plan.isDefault ? 'border-indigo-500 border-2' : ''}`}>
-              <CardHeader>
-                <div className="flex justify-between items-start mb-2">
+            <Card key={plan.id} className={`admin-plan-card min-h-[450px] flex flex-col ${plan.isDefault ? 'border-indigo-500 border-2' : ''}`}>
+              <CardHeader className="admin-plan-card-header">
+                <div className="admin-plan-card-title-row flex justify-between items-start mb-2 gap-3">
                   <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="admin-plan-title flex items-center gap-2">
                       {plan.name}
                       {plan.isDefault && (
                         <Badge variant="default" className="bg-indigo-600">
@@ -1071,22 +1071,22 @@ export function AdminPlans() {
                       )}
                     </CardTitle>
                   </div>
-                  <Badge variant="secondary">{plan.duration}</Badge>
+                  <Badge variant="secondary" className="admin-plan-duration">{plan.duration}</Badge>
                 </div>
-                <CardDescription className="flex items-baseline gap-1">
+                <CardDescription className="admin-plan-price flex items-baseline gap-1">
                   {plan.price === 0 ? (
-                    <span className="text-3xl text-green-600">Free</span>
+                    <span className="admin-plan-price-value text-3xl text-green-600">Free</span>
                   ) : (
                     <>
-                      <span className="text-3xl">₹{plan.price}</span>
+                      <span className="admin-plan-price-value text-3xl">₹{plan.price}</span>
                       <span className="text-gray-600">/{plan.duration}</span>
                     </>
                   )}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
+              <CardContent className="admin-plan-card-content flex-1 flex flex-col">
                 <div className="space-y-3 flex-1">
-                  <div className="flex items-center gap-2 text-sm font-medium text-indigo-600">
+                  <div className="admin-plan-interviews flex items-center gap-2 text-sm font-medium text-indigo-600">
                     <CreditCard className="h-4 w-4" />
                     {plan.interviews} mock interviews
                   </div>
@@ -1118,10 +1118,10 @@ export function AdminPlans() {
                     </div>
                   )}
                 </div>
-                <div className="mt-4 pt-4 border-t text-xs text-gray-500">
+                <div className="admin-plan-created mt-4 pt-4 border-t text-xs text-gray-500">
                   Created {new Date(plan.createdAt).toLocaleDateString()}
                 </div>
-                <div className="flex gap-2 mt-4">
+                <div className="admin-plan-card-actions flex gap-2 mt-4">
                   <Button
                     type="button"
                     variant="outline"

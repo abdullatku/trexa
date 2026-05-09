@@ -2,6 +2,7 @@ import { Routes, Route, useNavigate } from 'react-router-dom';
 import { StudentInterviewsList } from '../student/StudentInterviewsList';
 import { ViewPlans } from '../student/ViewPlans';
 import { SelectPlan } from '../student/SelectPlan';
+import { StudentPayments } from '../student/StudentPayments';
 import { ProfilePage } from '../shared/ProfilePage';
 import { DashboardLayout } from '../layout/DashboardLayout';
 import { Calendar, CreditCard, User } from 'lucide-react';
@@ -24,6 +25,12 @@ export function StudentDashboard() {
       onClick: () => navigate('/student/plans'),
     },
     {
+      label: 'My Payments',
+      icon: CreditCard,
+      path: '/student/payments',
+      onClick: () => navigate('/student/payments'),
+    },
+    {
       label: 'Profile',
       icon: User,
       path: '/student/profile',
@@ -37,6 +44,7 @@ export function StudentDashboard() {
         <Route index element={<StudentInterviewsList />} />
         <Route path="plans" element={<ViewPlans />} />
         <Route path="select-plan" element={<SelectPlan />} />
+        <Route path="payments" element={<StudentPayments />} />
         <Route path="profile" element={<ProfilePage />} />
       </Routes>
     </DashboardLayout>

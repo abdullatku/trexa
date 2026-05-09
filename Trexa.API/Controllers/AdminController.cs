@@ -47,7 +47,8 @@ public sealed class AdminController : ControllerBase
                 techStacks = user.TechStacks,
                 linkedInProfile = user.LinkedInProfile,
                 bio = user.Bio,
-                company = user.Company
+                company = user.Company,
+                defaultInterviewerFee = user.DefaultInterviewerFee
             });
         }
 
@@ -97,12 +98,14 @@ public sealed class AdminController : ControllerBase
             user.LinkedInProfile = request.LinkedInProfile?.Trim();
             user.Bio = request.Bio?.Trim();
             user.TechStacks = request.TechStacks ?? [];
+            user.DefaultInterviewerFee = role == "interviewer" ? Math.Max(0, request.DefaultInterviewerFee ?? 0) : 0;
         }
         else
         {
             user.LinkedInProfile = null;
             user.Bio = null;
             user.TechStacks = [];
+            user.DefaultInterviewerFee = 0;
         }
 
         await _userRepository.CreateAsync(user, generatedPassword, cancellationToken);
@@ -121,7 +124,8 @@ public sealed class AdminController : ControllerBase
                 techStacks = user.TechStacks,
                 linkedInProfile = user.LinkedInProfile,
                 bio = user.Bio,
-                company = user.Company
+                company = user.Company,
+                defaultInterviewerFee = user.DefaultInterviewerFee
             }
         });
     }
@@ -152,6 +156,40 @@ public sealed class AdminController : ControllerBase
         }
 
         return Ok(new { message = "User deleted successfully", userId = id });
+    }
+
+    [HttpPut("users/{id}/default-interviewer-fee")]
+    public async Task<IActionResult> UpdateDefaultInterviewerFee(string id, [FromBody] UpdateDefaultInterviewerFeeRequest request, CancellationToken cancellationToken)
+    {
+        if (!User.IsInRole("admin"))
+        {
+            return Forbid();
+        }
+
+        if (!Guid.TryParse(id, out var userId))
+        {
+            return BadRequest(new { error = "Invalid user ID format" });
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user is null || user.Role != "interviewer")
+        {
+            return NotFound(new { error = "Interviewer not found" });
+        }
+
+        user.DefaultInterviewerFee = Math.Max(0, request.DefaultInterviewerFee);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        return Ok(new
+        {
+            message = "Default interviewer fee updated successfully",
+            user = new
+            {
+                id = user.Id.ToString(),
+                defaultInterviewerFee = user.DefaultInterviewerFee
+            }
+        });
     }
 
     [HttpGet("analytics")]
@@ -288,5 +326,8 @@ public sealed class AdminController : ControllerBase
         string? LinkedInProfile,
         string? Bio,
         List<string>? TechStacks,
-        string? Company);
+        string? Company,
+        decimal? DefaultInterviewerFee);
+
+    public sealed record UpdateDefaultInterviewerFeeRequest(decimal DefaultInterviewerFee);
 }

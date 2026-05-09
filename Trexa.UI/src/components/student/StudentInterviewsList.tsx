@@ -269,18 +269,19 @@ export function StudentInterviewsList() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
+    <div className="student-interviews-page space-y-6">
+      <div className="student-interviews-header flex justify-between items-start gap-4">
+        <div className="student-interviews-heading min-w-0">
           <h2 className="text-2xl mb-2">My Interviews</h2>
           <p className="text-gray-600">View and manage your scheduled and past interviews</p>
         </div>
-        <div className="flex gap-2">
-          <RequestInterview onSuccess={fetchData} />
+        <div className="student-interviews-actions flex gap-2">
+          <RequestInterview onSuccess={fetchData} triggerClassName="student-primary-action" />
           <Button 
             onClick={handleRefresh} 
             disabled={refreshing}
             variant="outline"
+            className="student-refresh-action"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -288,15 +289,15 @@ export function StudentInterviewsList() {
         </div>
       </div>
 
-      <Tabs defaultValue="pending">
-        <TabsList>
-          <TabsTrigger value="pending">
+      <Tabs defaultValue="pending" className="student-interviews-tabs-root">
+        <TabsList className="student-interviews-tabs">
+          <TabsTrigger value="pending" className="student-interviews-tab">
             Pending ({pendingInterviews.length})
           </TabsTrigger>
-          <TabsTrigger value="upcoming">
+          <TabsTrigger value="upcoming" className="student-interviews-tab">
             Upcoming ({upcomingInterviews.length})
           </TabsTrigger>
-          <TabsTrigger value="past">
+          <TabsTrigger value="past" className="student-interviews-tab">
             Past ({pastInterviews.length})
           </TabsTrigger>
         </TabsList>

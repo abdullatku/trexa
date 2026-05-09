@@ -8,7 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { apiBaseUrl } from "../../config/api";
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { AdminPagination, getPaginationRange } from './AdminPagination';
 
@@ -28,12 +28,23 @@ export function AdminDesignations() {
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [designationsPage, setDesignationsPage] = useState(1);
+  const [designationSearch, setDesignationSearch] = useState('');
+  const [editingDesignation, setEditingDesignation] = useState<Designation | null>(null);
+  const [updatingDesignation, setUpdatingDesignation] = useState(false);
+  const [deletingDesignation, setDeletingDesignation] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
   });
-  const designationsRange = getPaginationRange(designationsPage, designations.length, DESIGNATIONS_PAGE_SIZE);
-  const paginatedDesignations = designations.slice(
+  const normalizedDesignationSearch = designationSearch.trim().toLowerCase();
+  const filteredDesignations = designations.filter(designation => {
+    if (!normalizedDesignationSearch) return true;
+    return [designation.name, designation.description]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(normalizedDesignationSearch));
+  });
+  const designationsRange = getPaginationRange(designationsPage, filteredDesignations.length, DESIGNATIONS_PAGE_SIZE);
+  const paginatedDesignations = filteredDesignations.slice(
     (designationsRange.currentPage - 1) * DESIGNATIONS_PAGE_SIZE,
     designationsRange.currentPage * DESIGNATIONS_PAGE_SIZE
   );
@@ -41,6 +52,10 @@ export function AdminDesignations() {
   useEffect(() => {
     fetchDesignations();
   }, [accessToken]);
+
+  useEffect(() => {
+    setDesignationsPage(1);
+  }, [designationSearch]);
 
   const fetchDesignations = async () => {
     try {
@@ -93,6 +108,67 @@ export function AdminDesignations() {
       toast.error(error.message || 'Failed to create designation');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleUpdateDesignation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDesignation) return;
+
+    setUpdatingDesignation(true);
+    try {
+      const response = await fetch(`/admin/designations/${editingDesignation.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name: editingDesignation.name,
+          description: editingDesignation.description,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update designation');
+      }
+
+      toast.success('Designation updated successfully');
+      setEditingDesignation(null);
+      fetchDesignations();
+    } catch (error: any) {
+      console.error('Error updating designation:', error);
+      toast.error(error.message || 'Failed to update designation');
+    } finally {
+      setUpdatingDesignation(false);
+    }
+  };
+
+  const handleDeleteDesignation = async (designation: Designation) => {
+    if (!confirm(`Delete designation "${designation.name}"?`)) {
+      return;
+    }
+
+    setDeletingDesignation(designation.id);
+    try {
+      const response = await fetch(`/admin/designations/${designation.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete designation');
+      }
+
+      toast.success('Designation deleted successfully');
+      fetchDesignations();
+    } catch (error: any) {
+      console.error('Error deleting designation:', error);
+      toast.error(error.message || 'Failed to delete designation');
+    } finally {
+      setDeletingDesignation(null);
     }
   };
 
@@ -163,29 +239,93 @@ export function AdminDesignations() {
           {designations.length === 0 ? (
             <p className="text-center text-gray-500 py-8">No designations found</p>
           ) : (
+            <>
+            <Input
+              value={designationSearch}
+              onChange={(e) => setDesignationSearch(e.target.value)}
+              placeholder="Search designations by name or description"
+              className="mb-4 max-w-md"
+            />
+            {filteredDesignations.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No designations match your search</p>
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Created At</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedDesignations.map((designation) => (
                   <TableRow key={designation.id}>
-                    <TableCell>{designation.name}</TableCell>
-                    <TableCell>{designation.description || '-'}</TableCell>
+                    <TableCell>
+                      {editingDesignation?.id === designation.id ? (
+                        <Input
+                          value={editingDesignation.name}
+                          onChange={(e) => setEditingDesignation({ ...editingDesignation, name: e.target.value })}
+                        />
+                      ) : designation.name}
+                    </TableCell>
+                    <TableCell>
+                      {editingDesignation?.id === designation.id ? (
+                        <Input
+                          value={editingDesignation.description}
+                          onChange={(e) => setEditingDesignation({ ...editingDesignation, description: e.target.value })}
+                        />
+                      ) : designation.description || '-'}
+                    </TableCell>
                     <TableCell>{new Date(designation.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {editingDesignation?.id === designation.id ? (
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleUpdateDesignation} disabled={updatingDesignation}>
+                            {updatingDesignation ? 'Saving...' : 'Save'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingDesignation(null)} disabled={updatingDesignation}>
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditingDesignation(designation)}
+                            disabled={deletingDesignation === designation.id}
+                          >
+                            <Pencil className="h-4 w-4 text-indigo-600" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteDesignation(designation)}
+                            disabled={deletingDesignation === designation.id}
+                          >
+                            {deletingDesignation === designation.id ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-red-600" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            )}
+            </>
           )}
           <AdminPagination
             page={designationsPage}
             pageSize={DESIGNATIONS_PAGE_SIZE}
-            totalItems={designations.length}
+            totalItems={filteredDesignations.length}
             onPageChange={setDesignationsPage}
           />
         </CardContent>

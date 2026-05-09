@@ -86,4 +86,54 @@ public sealed class DesignationsController : ControllerBase
         await _store.UpsertAsync(_settings.DesignationsTable, designation, cancellationToken);
         return Ok(new { message = "Designation created successfully", designation });
     }
+
+    [HttpPut("admin/designations/{id}")]
+    public async Task<IActionResult> UpdateDesignation(string id, [FromBody] Designation requestBody, CancellationToken cancellationToken)
+    {
+        if (User.GetRole() != "admin")
+        {
+            return Forbid();
+        }
+
+        if (string.IsNullOrWhiteSpace(requestBody.Name))
+        {
+            return BadRequest(new { error = "Designation name is required" });
+        }
+
+        var designation = await _store.GetByIdAsync<Designation>(_settings.DesignationsTable, id, cancellationToken);
+        if (designation is null)
+        {
+            return NotFound(new { error = "Designation not found" });
+        }
+
+        var all = await _store.ScanAsync<Designation>(_settings.DesignationsTable, cancellationToken);
+        var exists = all.Any(x => x.Id != id && string.Equals(x.Name, requestBody.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (exists)
+        {
+            return BadRequest(new { error = "Designation already exists" });
+        }
+
+        designation.Name = requestBody.Name.Trim();
+        designation.Description = requestBody.Description?.Trim() ?? string.Empty;
+
+        await _store.UpsertAsync(_settings.DesignationsTable, designation, cancellationToken);
+        return Ok(new { message = "Designation updated successfully", designation });
+    }
+
+    [HttpDelete("admin/designations/{id}")]
+    public async Task<IActionResult> DeleteDesignation(string id, CancellationToken cancellationToken)
+    {
+        if (User.GetRole() != "admin")
+        {
+            return Forbid();
+        }
+
+        var deleted = await _store.DeleteByIdAsync(_settings.DesignationsTable, id, cancellationToken);
+        if (!deleted)
+        {
+            return NotFound(new { error = "Designation not found" });
+        }
+
+        return Ok(new { message = "Designation deleted successfully", designationId = id });
+    }
 }

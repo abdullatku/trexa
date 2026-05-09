@@ -1,9 +1,10 @@
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { InterviewerInterviewsList } from '../interviewer/InterviewerInterviewsList';
 import { InterviewerAvailability } from '../interviewer/InterviewerAvailability';
+import { InterviewerPayments } from '../interviewer/InterviewerPayments';
 import { ProfilePage } from '../shared/ProfilePage';
 import { DashboardLayout } from '../layout/DashboardLayout';
-import { Calendar, Clock, User } from 'lucide-react';
+import { Calendar, Clock, CreditCard, User } from 'lucide-react';
 
 export function InterviewerDashboard() {
   const navigate = useNavigate();
@@ -23,6 +24,12 @@ export function InterviewerDashboard() {
       onClick: () => navigate('/interviewer/availability'),
     },
     {
+      label: 'Payments',
+      icon: CreditCard,
+      path: '/interviewer/payments',
+      onClick: () => navigate('/interviewer/payments'),
+    },
+    {
       label: 'Profile',
       icon: User,
       path: '/interviewer/profile',
@@ -35,6 +42,7 @@ export function InterviewerDashboard() {
       <Routes>
         <Route index element={<InterviewerInterviewsList />} />
         <Route path="availability" element={<InterviewerAvailability />} />
+        <Route path="payments" element={<InterviewerPayments />} />
         <Route path="profile" element={<ProfilePage />} />
       </Routes>
     </DashboardLayout>

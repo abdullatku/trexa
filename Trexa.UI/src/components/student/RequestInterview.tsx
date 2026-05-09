@@ -44,9 +44,10 @@ const COMPANY_LEVELS = [
 
 interface RequestInterviewProps {
   onSuccess?: () => void;
+  triggerClassName?: string;
 }
 
-export function RequestInterview({ onSuccess }: RequestInterviewProps) {
+export function RequestInterview({ onSuccess, triggerClassName }: RequestInterviewProps) {
   const { accessToken } = useAuth();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [selectedDesignation, setSelectedDesignation] = useState('');
@@ -308,7 +309,7 @@ export function RequestInterview({ onSuccess }: RequestInterviewProps) {
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700">
+        <Button size="lg" className={`bg-indigo-600 hover:bg-indigo-700 ${triggerClassName || ''}`}>
           <Calendar className="h-5 w-5 mr-2" />
           Request Interview
         </Button>

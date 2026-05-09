@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { UserPlus, X, Plus, Code, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminPagination, getPaginationRange } from './AdminPagination';
@@ -23,6 +24,7 @@ interface User {
   techStacks?: string[];
   linkedInProfile?: string;
   company?: string;
+  defaultInterviewerFee?: number;
 }
 
 const AVAILABLE_TECH_STACKS = [
@@ -45,7 +47,11 @@ export function AdminUsers() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [savingFeeUserId, setSavingFeeUserId] = useState<string | null>(null);
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
   const [usersPage, setUsersPage] = useState(1);
+  const [activeRole, setActiveRole] = useState<'student' | 'interviewer' | 'admin'>('student');
+  const [userSearch, setUserSearch] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     name: '',
@@ -54,12 +60,33 @@ export function AdminUsers() {
     bio: '',
     techStacks: [] as string[],
     company: '',
+    defaultInterviewerFee: '',
   });
   const [newTech, setNewTech] = useState('');
 
   const isAdminRole = formData.role === 'admin';
-  const usersRange = getPaginationRange(usersPage, users.length, USERS_PAGE_SIZE);
-  const paginatedUsers = users.slice(
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const roleUsers = users.filter(user => user.role === activeRole);
+  const filteredUsers = roleUsers.filter(user => {
+    if (!normalizedUserSearch) return true;
+
+    return [
+      user.name,
+      user.email,
+      user.company,
+      user.linkedInProfile,
+      ...(user.techStacks || []),
+    ]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(normalizedUserSearch));
+  });
+  const roleCounts = {
+    student: users.filter(user => user.role === 'student').length,
+    interviewer: users.filter(user => user.role === 'interviewer').length,
+    admin: users.filter(user => user.role === 'admin').length,
+  };
+  const usersRange = getPaginationRange(usersPage, filteredUsers.length, USERS_PAGE_SIZE);
+  const paginatedUsers = filteredUsers.slice(
     (usersRange.currentPage - 1) * USERS_PAGE_SIZE,
     usersRange.currentPage * USERS_PAGE_SIZE
   );
@@ -69,6 +96,10 @@ export function AdminUsers() {
       fetchUsers();
     }
   }, [accessToken]);
+
+  useEffect(() => {
+    setUsersPage(1);
+  }, [activeRole, userSearch]);
 
   const fetchUsers = async () => {
     try {
@@ -81,6 +112,13 @@ export function AdminUsers() {
 
       const data = await response.json();
       setUsers(data.users || []);
+      const nextDrafts: Record<string, string> = {};
+      (data.users || []).forEach((user: User) => {
+        if (user.role === 'interviewer') {
+          nextDrafts[user.id] = String(user.defaultInterviewerFee || 0);
+        }
+      });
+      setFeeDrafts(nextDrafts);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
@@ -148,6 +186,37 @@ export function AdminUsers() {
     }
   };
 
+  const handleSaveDefaultFee = async (user: User) => {
+    if (!accessToken) return;
+
+    setSavingFeeUserId(user.id);
+    try {
+      const response = await fetch(`/admin/users/${user.id}/default-interviewer-fee`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          defaultInterviewerFee: Number(feeDrafts[user.id]) || 0,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update default interviewer fee');
+      }
+
+      toast.success('Default interviewer fee updated');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error updating default interviewer fee:', error);
+      toast.error(error.message || 'Failed to update default interviewer fee');
+    } finally {
+      setSavingFeeUserId(null);
+    }
+  };
+
   const handleRoleChange = (value: string) => {
     if (value === 'admin') {
       setFormData(prev => ({
@@ -156,12 +225,17 @@ export function AdminUsers() {
         linkedInProfile: '',
         bio: '',
         techStacks: [],
+        defaultInterviewerFee: '',
       }));
       setNewTech('');
       return;
     }
 
-    setFormData(prev => ({ ...prev, role: value }));
+    setFormData(prev => ({
+      ...prev,
+      role: value,
+      defaultInterviewerFee: value === 'interviewer' ? prev.defaultInterviewerFee : '',
+    }));
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -180,6 +254,9 @@ export function AdminUsers() {
         payload.linkedInProfile = formData.linkedInProfile;
         payload.bio = formData.bio;
         payload.techStacks = formData.techStacks;
+        if (formData.role === 'interviewer') {
+          payload.defaultInterviewerFee = Number(formData.defaultInterviewerFee) || 0;
+        }
       }
 
       const response = await fetch(
@@ -211,6 +288,7 @@ export function AdminUsers() {
         bio: '',
         techStacks: [],
         company: '',
+        defaultInterviewerFee: '',
       });
       fetchUsers();
     } catch (error: any) {
@@ -360,6 +438,20 @@ export function AdminUsers() {
                       </Button>
                     </div>
                   </div>
+                  {formData.role === 'interviewer' && (
+                    <div>
+                      <Label htmlFor="defaultInterviewerFee">Default Interview Fee</Label>
+                      <Input
+                        id="defaultInterviewerFee"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.defaultInterviewerFee}
+                        onChange={(e) => setFormData({ ...formData, defaultInterviewerFee: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
@@ -381,20 +473,41 @@ export function AdminUsers() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>Total users: {users.length}</CardDescription>
+          <CardTitle>Users by Role</CardTitle>
+          <CardDescription>Search and manage users within each role</CardDescription>
         </CardHeader>
         <CardContent>
           {users.length === 0 ? (
             <p className="text-center text-gray-500 py-8">No users found</p>
           ) : (
             <>
+              <Tabs value={activeRole} onValueChange={(value) => setActiveRole(value as 'student' | 'interviewer' | 'admin')} className="mb-4">
+                <TabsList className="w-full grid grid-cols-3 h-auto">
+                  <TabsTrigger value="student">Students ({roleCounts.student})</TabsTrigger>
+                  <TabsTrigger value="interviewer">Interviewers ({roleCounts.interviewer})</TabsTrigger>
+                  <TabsTrigger value="admin">Admins ({roleCounts.admin})</TabsTrigger>
+                </TabsList>
+                <TabsContent value={activeRole} className="mt-4">
+                  <Input
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder={`Search ${activeRole}s by name, email, company, or skill`}
+                    className="max-w-md"
+                  />
+                </TabsContent>
+              </Tabs>
+
+              {filteredUsers.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No {activeRole}s match your search</p>
+              ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    {activeRole === 'interviewer' && <TableHead>Default Fee</TableHead>}
                     <TableHead>Created At</TableHead>
                     <TableHead className="w-16">Actions</TableHead>
                   </TableRow>
@@ -409,6 +522,29 @@ export function AdminUsers() {
                           {user.role}
                         </Badge>
                       </TableCell>
+                      {activeRole === 'interviewer' && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={feeDrafts[user.id] ?? String(user.defaultInterviewerFee || 0)}
+                              onChange={(e) => setFeeDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
+                              className="h-8 w-28"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSaveDefaultFee(user)}
+                              disabled={savingFeeUserId === user.id}
+                            >
+                              {savingFeeUserId === user.id ? 'Saving...' : 'Save'}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Button
@@ -427,9 +563,11 @@ export function AdminUsers() {
               <AdminPagination
                 page={usersPage}
                 pageSize={USERS_PAGE_SIZE}
-                totalItems={users.length}
+                totalItems={filteredUsers.length}
                 onPageChange={setUsersPage}
               />
+              </>
+              )}
 
               <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>

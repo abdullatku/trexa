@@ -233,6 +233,11 @@ public sealed class DynamoUserRepository : IUserRepository
             item["Company"] = new(user.Company);
         }
 
+        if (user.DefaultInterviewerFee > 0)
+        {
+            item["DefaultInterviewerFee"] = new AttributeValue { N = user.DefaultInterviewerFee.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+        }
+
         if (!string.IsNullOrWhiteSpace(user.EmailVerificationToken))
         {
             item["EmailVerificationToken"] = new(user.EmailVerificationToken);
@@ -281,6 +286,7 @@ public sealed class DynamoUserRepository : IUserRepository
             Phone = GetString(item, "Phone"),
             TechStacks = GetStringSet(item, "TechStacks"),
             Company = GetString(item, "Company"),
+            DefaultInterviewerFee = GetDecimal(item, "DefaultInterviewerFee"),
             EmailVerified = GetBool(item, "EmailVerified"),
             EmailVerificationToken = GetString(item, "EmailVerificationToken"),
             EmailVerificationTokenExpiresAt = ParseDate(GetString(item, "EmailVerificationTokenExpiresAt")),
@@ -302,6 +308,26 @@ public sealed class DynamoUserRepository : IUserRepository
         }
 
         return value.BOOL ?? false;
+    }
+
+    private static decimal GetDecimal(Dictionary<string, AttributeValue> item, string key)
+    {
+        if (!item.TryGetValue(key, out var value))
+        {
+            return 0;
+        }
+
+        if (!string.IsNullOrWhiteSpace(value.N) && decimal.TryParse(value.N, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedNumber))
+        {
+            return parsedNumber;
+        }
+
+        if (!string.IsNullOrWhiteSpace(value.S) && decimal.TryParse(value.S, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsedString))
+        {
+            return parsedString;
+        }
+
+        return 0;
     }
 
     private static List<string> GetStringSet(Dictionary<string, AttributeValue> item, string key)

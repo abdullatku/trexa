@@ -25,5 +25,8 @@ public sealed class Interview
     public string? RescheduleReason { get; set; }
     public string? CompanyLevel { get; set; }
     public string? PreferredCompany { get; set; }
+    public decimal? InterviewerFee { get; set; }
+    public bool InterviewerPaymentReleased { get; set; }
+    public DateTime? InterviewerPaymentReleasedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
