@@ -5,6 +5,7 @@ import { apiBaseUrl } from "../../config/api";
 import { toast } from 'sonner@2.0.3';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Users, Calendar, CheckCircle, DollarSign, TrendingUp, Award } from 'lucide-react';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface Analytics {
   overview: {
@@ -27,11 +28,13 @@ interface Analytics {
 }
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+const INTERVIEWER_STATS_PAGE_SIZE = 10;
 
 export function AdminAnalytics() {
   const { accessToken } = useAuth();
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [interviewerStatsPage, setInterviewerStatsPage] = useState(1);
 
   useEffect(() => {
     fetchAnalytics();
@@ -90,6 +93,15 @@ export function AdminAnalytics() {
     month,
     interviews: count,
   }));
+  const interviewerStatsRange = getPaginationRange(
+    interviewerStatsPage,
+    analytics.interviewerStats.length,
+    INTERVIEWER_STATS_PAGE_SIZE
+  );
+  const paginatedInterviewerStats = analytics.interviewerStats.slice(
+    (interviewerStatsRange.currentPage - 1) * INTERVIEWER_STATS_PAGE_SIZE,
+    interviewerStatsRange.currentPage * INTERVIEWER_STATS_PAGE_SIZE
+  );
 
   return (
     <div className="space-y-6">
@@ -256,7 +268,7 @@ export function AdminAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                {analytics.interviewerStats.map((stat, index) => (
+                {paginatedInterviewerStats.map((stat, index) => (
                   <tr key={index} className="border-b hover:bg-gray-50">
                     <td className="p-2">{stat.name}</td>
                     <td className="text-right p-2">{stat.completed}</td>
@@ -278,6 +290,12 @@ export function AdminAnalytics() {
               </tbody>
             </table>
           </div>
+          <AdminPagination
+            page={interviewerStatsPage}
+            pageSize={INTERVIEWER_STATS_PAGE_SIZE}
+            totalItems={analytics.interviewerStats.length}
+            onPageChange={setInterviewerStatsPage}
+          />
         </CardContent>
       </Card>
     </div>

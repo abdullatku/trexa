@@ -12,6 +12,7 @@ import { Separator } from '../ui/separator';
 import { apiBaseUrl } from "../../config/api";
 import { CreditCard, Plus, Trash2, Building2, CheckCircle2, Pencil } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface Plan {
   id: string;
@@ -32,6 +33,8 @@ interface CompanyLevel {
   description: string;
   createdAt: string;
 }
+
+const PLANS_PAGE_SIZE = 6;
 
 export function AdminPlans() {
   const { accessToken } = useAuth();
@@ -65,6 +68,12 @@ export function AdminPlans() {
   const [deletingPlan, setDeletingPlan] = useState<string | null>(null);
   const [editFeatures, setEditFeatures] = useState<string[]>(['']);
   const [editSelectedCompanyLevels, setEditSelectedCompanyLevels] = useState<string[]>([]);
+  const [plansPage, setPlansPage] = useState(1);
+  const plansRange = getPaginationRange(plansPage, plans.length, PLANS_PAGE_SIZE);
+  const paginatedPlans = plans.slice(
+    (plansRange.currentPage - 1) * PLANS_PAGE_SIZE,
+    plansRange.currentPage * PLANS_PAGE_SIZE
+  );
 
   useEffect(() => {
     if (accessToken) {
@@ -1048,7 +1057,7 @@ export function AdminPlans() {
         </Card>
       ) : (
         <div className="grid md:grid-cols-3 gap-6 items-start">
-          {plans.map((plan) => (
+          {paginatedPlans.map((plan) => (
             <Card key={plan.id} className={`min-h-[450px] flex flex-col ${plan.isDefault ? 'border-indigo-500 border-2' : ''}`}>
               <CardHeader>
                 <div className="flex justify-between items-start mb-2">
@@ -1142,6 +1151,12 @@ export function AdminPlans() {
           ))}
         </div>
       )}
+      <AdminPagination
+        page={plansPage}
+        pageSize={PLANS_PAGE_SIZE}
+        totalItems={plans.length}
+        onPageChange={setPlansPage}
+      />
     </div>
   );
 }

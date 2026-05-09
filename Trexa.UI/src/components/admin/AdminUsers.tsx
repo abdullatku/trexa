@@ -7,11 +7,12 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { UserPlus, X, Plus, Code, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface User {
   id: string;
@@ -32,6 +33,8 @@ const AVAILABLE_TECH_STACKS = [
   'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'MongoDB', 'PostgreSQL',
 ];
 
+const USERS_PAGE_SIZE = 10;
+
 export function AdminUsers() {
   const { accessToken } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -42,6 +45,7 @@ export function AdminUsers() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [usersPage, setUsersPage] = useState(1);
   const [formData, setFormData] = useState({
     email: '',
     name: '',
@@ -54,6 +58,11 @@ export function AdminUsers() {
   const [newTech, setNewTech] = useState('');
 
   const isAdminRole = formData.role === 'admin';
+  const usersRange = getPaginationRange(usersPage, users.length, USERS_PAGE_SIZE);
+  const paginatedUsers = users.slice(
+    (usersRange.currentPage - 1) * USERS_PAGE_SIZE,
+    usersRange.currentPage * USERS_PAGE_SIZE
+  );
 
   useEffect(() => {
     if (accessToken) {
@@ -391,7 +400,7 @@ export function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
@@ -415,6 +424,12 @@ export function AdminUsers() {
                   ))}
                 </TableBody>
               </Table>
+              <AdminPagination
+                page={usersPage}
+                pageSize={USERS_PAGE_SIZE}
+                totalItems={users.length}
+                onPageChange={setUsersPage}
+              />
 
               <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>
@@ -424,16 +439,16 @@ export function AdminUsers() {
                       Are you sure you want to delete <strong>{userToDelete?.name}</strong> ({userToDelete?.email})? This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <div className="flex gap-2 justify-end">
+                  <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleConfirmDelete}
                       disabled={deleting}
-                      className="bg-red-600 hover:bg-red-700"
+                      className="bg-destructive text-white hover:bg-destructive/90"
                     >
                       {deleting ? 'Deleting...' : 'Delete'}
                     </AlertDialogAction>
-                  </div>
+                  </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
             </>

@@ -12,6 +12,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { UserCheck, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface Interview {
   id: string;
@@ -60,6 +61,7 @@ interface TimeSlot {
 }
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const INTERVIEWS_PAGE_SIZE = 10;
 
 export function AdminInterviews() {
   const { accessToken } = useAuth();
@@ -80,6 +82,8 @@ export function AdminInterviews() {
   const [rescheduleReason, setRescheduleReason] = useState('');
   const [rescheduling, setRescheduling] = useState(false);
   const [updatingInterviewId, setUpdatingInterviewId] = useState<string | null>(null);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [assignedPage, setAssignedPage] = useState(1);
 
   useEffect(() => {
     fetchData();
@@ -383,6 +387,16 @@ export function AdminInterviews() {
   const assignedInterviews = interviews.filter(
     (interview) => interview.scheduledDate !== 'pending' && interview.interviewerId
   );
+  const pendingRange = getPaginationRange(pendingPage, pendingInterviews.length, INTERVIEWS_PAGE_SIZE);
+  const assignedRange = getPaginationRange(assignedPage, assignedInterviews.length, INTERVIEWS_PAGE_SIZE);
+  const paginatedPendingInterviews = pendingInterviews.slice(
+    (pendingRange.currentPage - 1) * INTERVIEWS_PAGE_SIZE,
+    pendingRange.currentPage * INTERVIEWS_PAGE_SIZE
+  );
+  const paginatedAssignedInterviews = assignedInterviews.slice(
+    (assignedRange.currentPage - 1) * INTERVIEWS_PAGE_SIZE,
+    assignedRange.currentPage * INTERVIEWS_PAGE_SIZE
+  );
 
   if (loading) {
     return (
@@ -421,7 +435,7 @@ export function AdminInterviews() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingInterviews.map((interview) => (
+                {paginatedPendingInterviews.map((interview) => (
                   <TableRow key={interview.id}>
                     <TableCell>{getUserName(interview.studentId)}</TableCell>
                     <TableCell>{getDesignationName(interview.designationId)}</TableCell>
@@ -460,6 +474,12 @@ export function AdminInterviews() {
               </TableBody>
             </Table>
           )}
+          <AdminPagination
+            page={pendingPage}
+            pageSize={INTERVIEWS_PAGE_SIZE}
+            totalItems={pendingInterviews.length}
+            onPageChange={setPendingPage}
+          />
         </CardContent>
       </Card>
 
@@ -485,7 +505,7 @@ export function AdminInterviews() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {assignedInterviews.map((interview) => (
+                {paginatedAssignedInterviews.map((interview) => (
                   <TableRow key={interview.id}>
                     <TableCell>{getUserName(interview.studentId)}</TableCell>
                     <TableCell>{getDesignationName(interview.designationId)}</TableCell>
@@ -544,6 +564,12 @@ export function AdminInterviews() {
               </TableBody>
             </Table>
           )}
+          <AdminPagination
+            page={assignedPage}
+            pageSize={INTERVIEWS_PAGE_SIZE}
+            totalItems={assignedInterviews.length}
+            onPageChange={setAssignedPage}
+          />
         </CardContent>
       </Card>
 

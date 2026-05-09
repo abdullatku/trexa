@@ -6,14 +6,13 @@ interface TrexaLogoProps {
 }
 
 export function TrexaLogo({ className, title = 'Trexa' }: TrexaLogoProps) {
-  const logoSrc = new URL('../../../trexa_logo.png', import.meta.url).href;
+  const logoSrc = new URL('../../../trexa_logo.svg', import.meta.url).href;
 
   return (
     <img
       src={logoSrc}
       alt={title}
-      className={cn('object-contain', className)}
-      style={{height: 70}}
+      className={cn('trexa-logo object-contain', className)}
     />
   );
 }

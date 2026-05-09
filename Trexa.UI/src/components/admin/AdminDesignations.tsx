@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { apiBaseUrl } from "../../config/api";
 import { Briefcase } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface Designation {
   id: string;
@@ -18,16 +19,24 @@ interface Designation {
   createdAt: string;
 }
 
+const DESIGNATIONS_PAGE_SIZE = 10;
+
 export function AdminDesignations() {
   const { accessToken } = useAuth();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [designationsPage, setDesignationsPage] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
   });
+  const designationsRange = getPaginationRange(designationsPage, designations.length, DESIGNATIONS_PAGE_SIZE);
+  const paginatedDesignations = designations.slice(
+    (designationsRange.currentPage - 1) * DESIGNATIONS_PAGE_SIZE,
+    designationsRange.currentPage * DESIGNATIONS_PAGE_SIZE
+  );
 
   useEffect(() => {
     fetchDesignations();
@@ -163,7 +172,7 @@ export function AdminDesignations() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {designations.map((designation) => (
+                {paginatedDesignations.map((designation) => (
                   <TableRow key={designation.id}>
                     <TableCell>{designation.name}</TableCell>
                     <TableCell>{designation.description || '-'}</TableCell>
@@ -173,6 +182,12 @@ export function AdminDesignations() {
               </TableBody>
             </Table>
           )}
+          <AdminPagination
+            page={designationsPage}
+            pageSize={DESIGNATIONS_PAGE_SIZE}
+            totalItems={designations.length}
+            onPageChange={setDesignationsPage}
+          />
         </CardContent>
       </Card>
     </div>

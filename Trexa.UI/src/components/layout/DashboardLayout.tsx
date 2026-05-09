@@ -1,8 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/button';
 import { TrexaLogo } from '../ui/logo';
-import { LogOut, LucideIcon } from 'lucide-react';
+import { LogOut, LucideIcon, Menu, X } from 'lucide-react';
 
 interface MenuItem {
   label: string;
@@ -18,24 +18,42 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ title, menuItems, children }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
+    setMobileMenuOpen(false);
     await signOut();
   };
 
+  const handleMenuItemClick = (onClick: () => void) => {
+    setMobileMenuOpen(false);
+    onClick();
+  };
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="dashboard-shell flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <TrexaLogo className="h-8 w-8 text-indigo-600" />
+          <div className="dashboard-header-row flex justify-between items-center gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <TrexaLogo className="h-10 text-indigo-600" />
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="mobile-menu-toggle"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+            <div className="dashboard-user dashboard-user-desktop flex items-center gap-4 min-w-0">
+              <div className="text-right min-w-0">
                 <p className="text-sm text-gray-600">Signed in as</p>
-                <p>{user?.name}</p>
+                <p className="truncate">{user?.name}</p>
               </div>
               <Button variant="outline" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -43,24 +61,77 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
               </Button>
             </div>
           </div>
+
+          <button
+            type="button"
+            className={`mobile-menu-backdrop ${mobileMenuOpen ? 'is-open' : ''}`}
+            aria-label="Close navigation menu"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className={`dashboard-mobile-menu mobile-drawer ${mobileMenuOpen ? 'is-open' : ''}`}>
+            <div className="mobile-drawer-header">
+              <div>
+                <p className="sidebar-kicker">Workspace</p>
+                <p className="sidebar-heading">{title}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close navigation menu"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="dashboard-mobile-user">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-600">Signed in as</p>
+                <p className="truncate">{user?.name}</p>
+              </div>
+              <Button variant="outline" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
+            <nav className="dashboard-mobile-nav">
+              {menuItems.map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleMenuItemClick(item.onClick)}
+                  className="sidebar-nav-item"
+                >
+                  <span className="sidebar-nav-icon">
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full py-8">
-          <div className="flex gap-6 h-full">
+      <div className="dashboard-body flex-1 overflow-hidden">
+        <div className="dashboard-container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full py-8">
+          <div className="dashboard-content flex gap-6 h-full">
             {/* Sidebar */}
-            <aside className="w-64 flex-shrink-0">
-              <div className="bg-white rounded-lg shadow-sm p-4 sticky top-8">
-                <h2 className="text-lg mb-4">{title}</h2>
-                <nav className="space-y-2">
+            <aside className="dashboard-sidebar w-64 flex-shrink-0">
+              <div className="dashboard-sidebar-card bg-white rounded-lg shadow-sm p-4 sticky top-8">
+                <div className="dashboard-sidebar-head">
+                  <p className="sidebar-kicker">Workspace</p>
+                  <h2 className="sidebar-heading">{title}</h2>
+                </div>
+                <nav className="dashboard-nav space-y-2">
                   {menuItems.map((item, index) => (
                     <button
                       key={index}
                       onClick={item.onClick}
-                      className="w-full flex items-center gap-3 px-4 py-2 rounded-md hover:bg-gray-100 transition-colors text-left"
+                      className="sidebar-nav-item"
                     >
-                      <item.icon className="h-5 w-5 text-gray-600" />
+                      <span className="sidebar-nav-icon">
+                        <item.icon className="h-5 w-5" />
+                      </span>
                       <span>{item.label}</span>
                     </button>
                   ))}
@@ -69,7 +140,7 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto">
+            <main className="dashboard-main flex-1 overflow-y-auto min-w-0">
               {children}
             </main>
           </div>

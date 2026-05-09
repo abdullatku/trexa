@@ -1,13 +1,15 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/button';
 import { TrexaLogo } from '../ui/logo';
-import { Users, Calendar, CheckCircle } from 'lucide-react';
+import { Users, Calendar, CheckCircle, Menu, X } from 'lucide-react';
 import { useEffect } from 'react';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -22,47 +24,93 @@ export function LandingPage() {
     }
   }, [user, navigate]);
 
+  const goTo = (path: string) => {
+    setMobileMenuOpen(false);
+    navigate(path);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <TrexaLogo className="text-indigo-600" />
+        <div className="landing-header max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center gap-4">
+          <div className="landing-header-row">
+            <div className="flex items-center gap-2">
+              <TrexaLogo className="h-10 text-indigo-600" />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="mobile-menu-toggle"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate('/signin')}>
+          <div className="landing-actions-desktop flex gap-3">
+            <Button variant="outline" onClick={() => goTo('/signin')}>
               Sign In
             </Button>
-            <Button onClick={() => navigate('/signup')}>
+            <Button onClick={() => goTo('/signup')}>
               Sign Up
             </Button>
+          </div>
+          <button
+            type="button"
+            className={`mobile-menu-backdrop ${mobileMenuOpen ? 'is-open' : ''}`}
+            aria-label="Close navigation menu"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className={`landing-mobile-menu mobile-drawer ${mobileMenuOpen ? 'is-open' : ''}`}>
+            <div className="mobile-drawer-header">
+              <TrexaLogo className="h-10 text-indigo-600" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close navigation menu"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="landing-drawer-actions">
+              <Button variant="outline" onClick={() => goTo('/signin')}>
+                Sign In
+              </Button>
+              <Button onClick={() => goTo('/signup')}>
+                Sign Up
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <main className="landing-main max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl mb-6">
+          <h1 className="landing-title text-5xl mb-6">
             Master Your Interview Skills
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+          <p className="landing-copy text-xl text-gray-600 max-w-2xl mx-auto mb-8">
             Practice with experienced interviewers across different software technologies. Get personalized feedback and improve your chances of landing your dream job.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate('/signup')}>
+          <div className="landing-actions flex gap-4 justify-center">
+            <Button size="lg" onClick={() => goTo('/signup')}>
               Get Started
             </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/signin')}>
+            <Button size="lg" variant="outline" onClick={() => goTo('/signin')}>
               Sign In
             </Button>
           </div>
         </div>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mt-20">
-          <div className="bg-white p-8 rounded-lg shadow-md">
+        <div className="landing-feature-grid grid md:grid-cols-3 gap-8 mt-20">
+          <div className="landing-card bg-white p-8 rounded-lg shadow-md">
             <Calendar className="h-12 w-12 text-indigo-600 mb-4" />
             <h3 className="text-2xl mb-3">Flexible Scheduling</h3>
             <p className="text-gray-600">
@@ -70,7 +118,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="bg-white p-8 rounded-lg shadow-md">
+          <div className="landing-card bg-white p-8 rounded-lg shadow-md">
             <Users className="h-12 w-12 text-indigo-600 mb-4" />
             <h3 className="text-2xl mb-3">Expert Interviewers</h3>
             <p className="text-gray-600">
@@ -78,7 +126,7 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="bg-white p-8 rounded-lg shadow-md">
+          <div className="landing-card bg-white p-8 rounded-lg shadow-md">
             <CheckCircle className="h-12 w-12 text-indigo-600 mb-4" />
             <h3 className="text-2xl mb-3">Detailed Feedback</h3>
             <p className="text-gray-600">
@@ -88,7 +136,7 @@ export function LandingPage() {
         </div>
 
         {/* How It Works */}
-        <div className="mt-20 bg-white p-10 rounded-lg shadow-md">
+        <div className="landing-how-it-works mt-20 bg-white p-10 rounded-lg shadow-md">
           <h2 className="text-3xl text-center mb-10">How It Works</h2>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center">

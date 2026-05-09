@@ -12,7 +12,7 @@ export function SelectPlanPage() {
         {isAfterSignup && (
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <TrexaLogo className="text-indigo-600" />
+              <TrexaLogo className="h-10 text-indigo-600" />
             </div>
           </div>
         )}

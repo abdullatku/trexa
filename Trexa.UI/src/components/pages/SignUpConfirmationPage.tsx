@@ -9,11 +9,11 @@ export function SignUpConfirmationPage() {
   const email = searchParams.get('email');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+    <div className="auth-page min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <TrexaLogo className="h-10 w-10 text-indigo-600" />
+            <TrexaLogo className="h-10 text-indigo-600" />
           </div>
         </div>
 

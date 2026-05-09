@@ -10,6 +10,7 @@ import { apiBaseUrl } from "../../config/api";
 import { FileText, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { Checkbox } from '../ui/checkbox';
+import { AdminPagination, getPaginationRange } from './AdminPagination';
 
 interface FeedbackForm {
   id: string;
@@ -30,17 +31,25 @@ interface FormField {
   required: boolean;
 }
 
+const FEEDBACK_FORMS_PAGE_SIZE = 6;
+
 export function AdminFeedbackForms() {
   const { accessToken } = useAuth();
   const [forms, setForms] = useState<FeedbackForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [formsPage, setFormsPage] = useState(1);
   const [formName, setFormName] = useState('');
   const [fields, setFields] = useState<FormField[]>([
     { name: 'rating', label: 'Overall Rating (1-10)', type: 'number', required: true },
     { name: 'comments', label: 'Comments', type: 'textarea', required: true },
   ]);
+  const formsRange = getPaginationRange(formsPage, forms.length, FEEDBACK_FORMS_PAGE_SIZE);
+  const paginatedForms = forms.slice(
+    (formsRange.currentPage - 1) * FEEDBACK_FORMS_PAGE_SIZE,
+    formsRange.currentPage * FEEDBACK_FORMS_PAGE_SIZE
+  );
 
   useEffect(() => {
     fetchForms();
@@ -257,7 +266,7 @@ export function AdminFeedbackForms() {
             </CardContent>
           </Card>
         ) : (
-          forms.map((form) => (
+          paginatedForms.map((form) => (
             <Card key={form.id}>
               <CardHeader>
                 <CardTitle>{form.name}</CardTitle>
@@ -284,6 +293,12 @@ export function AdminFeedbackForms() {
           ))
         )}
       </div>
+      <AdminPagination
+        page={formsPage}
+        pageSize={FEEDBACK_FORMS_PAGE_SIZE}
+        totalItems={forms.length}
+        onPageChange={setFormsPage}
+      />
     </div>
   );
 }
