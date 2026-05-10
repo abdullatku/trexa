@@ -137,7 +137,7 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
           <div className="dashboard-content flex gap-6 h-full">
             {/* Sidebar */}
             <aside className="dashboard-sidebar w-64 flex-shrink-0">
-              <div className="dashboard-sidebar-card bg-white rounded-lg shadow-sm p-4 sticky top-8">
+              <div className="dashboard-sidebar-card bg-white rounded-lg shadow-sm p-4">
                 <div className="dashboard-sidebar-head">
                   <p className="sidebar-kicker">Workspace</p>
                   <h2 className="sidebar-heading">{title}</h2>
