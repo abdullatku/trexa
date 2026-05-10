@@ -12,6 +12,7 @@ export function TrexaLogo({ className, title = 'Trexa' }: TrexaLogoProps) {
     <img
       src={logoSrc}
       alt={title}
+      style={{height: 86}}
       className={cn('trexa-logo object-contain', className)}
     />
   );

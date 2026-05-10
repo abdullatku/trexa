@@ -49,7 +49,7 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
     <div className="dashboard-shell flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b flex-shrink-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1">
           <div className="dashboard-header-row flex justify-between items-center gap-4">
             <div className="flex items-center gap-2 min-w-0">
               <TrexaLogo className="h-10 text-indigo-600" />
