@@ -4,6 +4,7 @@ using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.Runtime;
+using Amazon.S3;
 using Amazon.SimpleEmailV2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
@@ -20,12 +21,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<DynamoDbSettings>(builder.Configuration.GetSection("DynamoDb"));
+builder.Services.Configure<S3StorageSettings>(builder.Configuration.GetSection("S3Storage"));
 builder.Services.Configure<RazorpaySettings>(builder.Configuration.GetSection("Razorpay"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<OAuthSettings>(builder.Configuration.GetSection("OAuth"));
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
 var dynamoSettings = builder.Configuration.GetSection("DynamoDb").Get<DynamoDbSettings>() ?? new DynamoDbSettings();
+var s3Settings = builder.Configuration.GetSection("S3Storage").Get<S3StorageSettings>() ?? new S3StorageSettings();
 var emailSettings = builder.Configuration.GetSection("Email").Get<EmailSettings>() ?? new EmailSettings();
 
 builder.Services.AddSingleton<IAmazonDynamoDB>(_ =>
@@ -69,6 +72,27 @@ builder.Services.AddSingleton<IAmazonDynamoDB>(_ =>
     return credentials is null
         ? new AmazonDynamoDBClient(region)
         : new AmazonDynamoDBClient(credentials, region);
+});
+
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+{
+    var regionName = string.IsNullOrWhiteSpace(s3Settings.Region) ? dynamoSettings.Region : s3Settings.Region;
+    var region = RegionEndpoint.GetBySystemName(regionName);
+    var accessKey = string.IsNullOrWhiteSpace(s3Settings.AccessKey) ? dynamoSettings.AccessKey : s3Settings.AccessKey;
+    var secretKey = string.IsNullOrWhiteSpace(s3Settings.SecretKey) ? dynamoSettings.SecretKey : s3Settings.SecretKey;
+    var sessionToken = string.IsNullOrWhiteSpace(s3Settings.SessionToken) ? dynamoSettings.SessionToken : s3Settings.SessionToken;
+    var hasExplicitKeys = !string.IsNullOrWhiteSpace(accessKey) && !string.IsNullOrWhiteSpace(secretKey);
+
+    if (!hasExplicitKeys)
+    {
+        return new AmazonS3Client(region);
+    }
+
+    AWSCredentials credentials = string.IsNullOrWhiteSpace(sessionToken)
+        ? new BasicAWSCredentials(accessKey, secretKey)
+        : new SessionAWSCredentials(accessKey, secretKey, sessionToken);
+
+    return new AmazonS3Client(credentials, region);
 });
 
 builder.Services.AddSingleton<IDynamoDBContext, DynamoDBContext>();

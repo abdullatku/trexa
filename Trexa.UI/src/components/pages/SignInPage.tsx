@@ -8,12 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { TrexaLogo } from '../ui/logo';
 import { toast } from 'sonner';
 import { OAuthButtons } from '../auth/OAuthButtons';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function SignInPage() {
   const navigate = useNavigate();
   const { signIn, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -77,14 +79,25 @@ export function SignInPage() {
 
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="border-input bg-input-background focus-within:border-ring focus-within:ring-ring/50 flex h-9 w-full items-center rounded-md border transition-[color,box-shadow] focus-within:ring-[3px]">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="min-w-0 flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="mr-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-gray-500 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    onClick={() => setShowPassword((value) => !value)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
