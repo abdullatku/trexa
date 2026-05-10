@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { TrexaLogo } from '../ui/logo';
 import { toast } from 'sonner';
 import { apiUrl } from '../../config/api';
+import { OAuthButtons } from '../auth/OAuthButtons';
 
 export function SignUpPage() {
   const navigate = useNavigate();
@@ -127,6 +128,14 @@ export function SignUpPage() {
                   {loading ? 'Creating account...' : 'Sign Up'}
                 </Button>
               </form>
+
+              <div className="my-4 flex items-center gap-3 text-xs text-gray-500">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span>or</span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+
+              <OAuthButtons />
 
               <div className="mt-4 text-center text-sm">
                 <span className="text-gray-600">Already have an account? </span>

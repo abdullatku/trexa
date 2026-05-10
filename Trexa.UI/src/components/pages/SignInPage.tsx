@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { TrexaLogo } from '../ui/logo';
 import { toast } from 'sonner';
+import { OAuthButtons } from '../auth/OAuthButtons';
 
 export function SignInPage() {
   const navigate = useNavigate();
@@ -90,6 +91,14 @@ export function SignInPage() {
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
+
+            <div className="my-4 flex items-center gap-3 text-xs text-gray-500">
+              <div className="h-px flex-1 bg-gray-200" />
+              <span>or</span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+
+            <OAuthButtons />
 
             <div className="mt-4 text-center text-sm">
               <Link to="/forgot-password" className="text-indigo-600 hover:underline">

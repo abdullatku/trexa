@@ -104,6 +104,49 @@ public sealed class AuthController : ControllerBase
         return Ok(new { message = result.Data });
     }
 
+    [HttpGet("external/{provider}")]
+    [AllowAnonymous]
+    public IActionResult ExternalSignIn(string provider, [FromQuery] string? returnUrl = null)
+    {
+        var redirectUri = BuildExternalCallbackUrl(provider);
+        var result = _authService.BuildExternalAuthorizationUrl(provider, redirectUri, returnUrl);
+        if (!result.Success)
+        {
+            return StatusCode(result.StatusCode, new { error = result.Error });
+        }
+
+        return Redirect(result.Data!);
+    }
+
+    [HttpGet("external/{provider}/callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExternalSignInCallback(
+        string provider,
+        [FromQuery] string? code,
+        [FromQuery] string? state,
+        [FromQuery] string? error,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            return Redirect(_authService.BuildFrontendOAuthErrorUrl(state, error));
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Redirect(_authService.BuildFrontendOAuthErrorUrl(state, "Missing OAuth authorization code"));
+        }
+
+        var redirectUri = BuildExternalCallbackUrl(provider);
+        var result = await _authService.ExternalSignInAsync(provider, code, redirectUri, cancellationToken);
+        if (!result.Success)
+        {
+            return Redirect(_authService.BuildFrontendOAuthErrorUrl(state, result.Error ?? "External sign-in failed"));
+        }
+
+        return Redirect(_authService.BuildFrontendOAuthCallbackUrl(result.Data!, state));
+    }
+
     [HttpGet("profile")]
     [Authorize]
     public async Task<IActionResult> Profile(CancellationToken cancellationToken)
@@ -151,5 +194,15 @@ public sealed class AuthController : ControllerBase
             message = "Profile updated successfully",
             profile = result.Data
         });
+    }
+
+    private string BuildExternalCallbackUrl(string provider)
+    {
+        return Url.ActionLink(
+            action: nameof(ExternalSignInCallback),
+            controller: "Auth",
+            values: new { provider },
+            protocol: Request.Scheme,
+            host: Request.Host.ToString())!;
     }
 }

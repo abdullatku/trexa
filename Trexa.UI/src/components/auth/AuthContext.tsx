@@ -14,6 +14,7 @@ interface AuthContextType {
   accessToken: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  completeExternalSignIn: (token: string) => Promise<User>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
@@ -101,6 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchProfile(token);
   };
 
+  const completeExternalSignIn = async (token: string) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    setAccessToken(token);
+    return await fetchProfile(token);
+  };
+
   const forgotPassword = async (email: string) => {
     const response = await fetch(apiUrl('/auth/forgot-password'), {
       method: 'POST',
@@ -138,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, signIn, signOut, refreshProfile, forgotPassword, resetPassword }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, signIn, completeExternalSignIn, signOut, refreshProfile, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

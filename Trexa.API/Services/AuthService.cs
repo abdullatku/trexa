@@ -1,4 +1,8 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Serialization;
+using System.Web;
 using Microsoft.Extensions.Options;
 using Trexa.Api.Constants;
 using Trexa.Api.Models.Auth;
@@ -17,17 +21,23 @@ public sealed class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly IEmailService _emailService;
     private readonly EmailSettings _emailSettings;
+    private readonly OAuthSettings _oauthSettings;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public AuthService(
         IUserRepository userRepository,
         ITokenService tokenService,
         IEmailService emailService,
-        IOptions<EmailSettings> emailSettings)
+        IOptions<EmailSettings> emailSettings,
+        IOptions<OAuthSettings> oauthSettings,
+        IHttpClientFactory httpClientFactory)
     {
         _userRepository = userRepository;
         _tokenService = tokenService;
         _emailService = emailService;
         _emailSettings = emailSettings.Value;
+        _oauthSettings = oauthSettings.Value;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<AuthServiceResult<AuthResponse>> SignUpAsync(SignUpRequest request, CancellationToken cancellationToken = default)
@@ -249,6 +259,115 @@ public sealed class AuthService : IAuthService
         return AuthServiceResult<string>.Ok("Password reset successfully");
     }
 
+    public AuthServiceResult<string> BuildExternalAuthorizationUrl(string provider, string redirectUri, string? returnUrl)
+    {
+        var normalizedProvider = NormalizeProvider(provider);
+        var providerSettings = GetProviderSettings(normalizedProvider);
+        if (providerSettings is null)
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status404NotFound, "Unsupported OAuth provider");
+        }
+
+        if (string.IsNullOrWhiteSpace(providerSettings.ClientId) || string.IsNullOrWhiteSpace(providerSettings.ClientSecret))
+        {
+            return AuthServiceResult<string>.Fail(StatusCodes.Status500InternalServerError, $"{normalizedProvider} OAuth is not configured");
+        }
+
+        var state = EncodeState(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl.Trim());
+
+        var query = HttpUtility.ParseQueryString(string.Empty);
+        query["client_id"] = providerSettings.ClientId;
+        query["redirect_uri"] = redirectUri;
+        query["response_type"] = "code";
+        query["state"] = state;
+
+        var authorizationEndpoint = normalizedProvider switch
+        {
+            "google" => "https://accounts.google.com/o/oauth2/v2/auth",
+            _ => string.Empty
+        };
+
+        query["scope"] = "openid email profile";
+        query["access_type"] = "online";
+        query["prompt"] = "select_account";
+
+        return AuthServiceResult<string>.Ok($"{authorizationEndpoint}?{query}");
+    }
+
+    public async Task<AuthServiceResult<AuthResponse>> ExternalSignInAsync(string provider, string code, string redirectUri, CancellationToken cancellationToken = default)
+    {
+        var normalizedProvider = NormalizeProvider(provider);
+        var providerSettings = GetProviderSettings(normalizedProvider);
+        if (providerSettings is null)
+        {
+            return AuthServiceResult<AuthResponse>.Fail(StatusCodes.Status404NotFound, "Unsupported OAuth provider");
+        }
+
+        if (string.IsNullOrWhiteSpace(providerSettings.ClientId) || string.IsNullOrWhiteSpace(providerSettings.ClientSecret))
+        {
+            return AuthServiceResult<AuthResponse>.Fail(StatusCodes.Status500InternalServerError, $"{normalizedProvider} OAuth is not configured");
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return AuthServiceResult<AuthResponse>.Fail(StatusCodes.Status400BadRequest, "OAuth code is required");
+        }
+
+        var externalProfile = normalizedProvider switch
+        {
+            "google" => await GetGoogleProfileAsync(code, redirectUri, providerSettings, cancellationToken),
+            _ => null
+        };
+
+        if (externalProfile is null || string.IsNullOrWhiteSpace(externalProfile.Email))
+        {
+            return AuthServiceResult<AuthResponse>.Fail(StatusCodes.Status400BadRequest, "OAuth provider did not return a usable email address");
+        }
+
+        var email = externalProfile.Email.Trim().ToLowerInvariant();
+        var user = await _userRepository.FindByEmailAsync(email, cancellationToken);
+        if (user is null)
+        {
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                Name = string.IsNullOrWhiteSpace(externalProfile.Name) ? email : externalProfile.Name.Trim(),
+                Role = DefaultRole,
+                CreatedAt = DateTime.UtcNow,
+                EmailVerified = true
+            };
+
+            await _userRepository.CreateAsync(user, GenerateExternalPassword(), cancellationToken);
+        }
+        else
+        {
+            var changed = false;
+            if (!user.EmailVerified)
+            {
+                user.EmailVerified = true;
+                user.EmailVerificationToken = null;
+                user.EmailVerificationTokenExpiresAt = null;
+                changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(user.Name) && !string.IsNullOrWhiteSpace(externalProfile.Name))
+            {
+                user.Name = externalProfile.Name.Trim();
+                changed = true;
+            }
+
+            if (changed)
+            {
+                user.UpdatedAt = DateTime.UtcNow;
+                await _userRepository.UpdateAsync(user, cancellationToken);
+            }
+        }
+
+        var accessToken = await _tokenService.GenerateTokenAsync(user, cancellationToken);
+        return AuthServiceResult<AuthResponse>.Ok(new AuthResponse(accessToken, BuildUserProfile(user)));
+    }
+
     private async Task<ApplicationUser?> GetCurrentUserAsync(ClaimsPrincipal principal, CancellationToken cancellationToken)
     {
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -309,6 +428,120 @@ public sealed class AuthService : IAuthService
     }
 
     private static string GenerateVerificationToken() => Guid.NewGuid().ToString("N");
+
+    public string BuildFrontendOAuthCallbackUrl(AuthResponse response, string? state, string? error = null)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_oauthSettings.FrontendCallbackUrl)
+            ? "http://localhost:3000/auth/callback"
+            : _oauthSettings.FrontendCallbackUrl.Trim();
+
+        var returnUrl = DecodeState(state) ?? "/";
+        var fragment = new Dictionary<string, string?>
+        {
+            ["accessToken"] = response.AccessToken,
+            ["role"] = response.User.Role,
+            ["returnUrl"] = returnUrl
+        };
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            fragment["error"] = error;
+        }
+
+        return $"{baseUrl}#{BuildFragment(fragment)}";
+    }
+
+    public string BuildFrontendOAuthErrorUrl(string? state, string error)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_oauthSettings.FrontendCallbackUrl)
+            ? "http://localhost:3000/auth/callback"
+            : _oauthSettings.FrontendCallbackUrl.Trim();
+
+        return $"{baseUrl}#{BuildFragment(new Dictionary<string, string?>
+        {
+            ["error"] = error,
+            ["returnUrl"] = DecodeState(state) ?? "/"
+        })}";
+    }
+
+    private async Task<ExternalOAuthProfile?> GetGoogleProfileAsync(string code, string redirectUri, OAuthProviderSettings settings, CancellationToken cancellationToken)
+    {
+        var client = _httpClientFactory.CreateClient();
+        using var tokenResponse = await client.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["client_id"] = settings.ClientId,
+            ["client_secret"] = settings.ClientSecret,
+            ["code"] = code,
+            ["grant_type"] = "authorization_code",
+            ["redirect_uri"] = redirectUri
+        }), cancellationToken);
+
+        var token = await tokenResponse.Content.ReadFromJsonAsync<OAuthTokenResponse>(cancellationToken: cancellationToken);
+        if (!tokenResponse.IsSuccessStatusCode || string.IsNullOrWhiteSpace(token?.AccessToken))
+        {
+            return null;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://www.googleapis.com/oauth2/v2/userinfo");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.AccessToken);
+        using var profileResponse = await client.SendAsync(request, cancellationToken);
+        return profileResponse.IsSuccessStatusCode
+            ? await profileResponse.Content.ReadFromJsonAsync<ExternalOAuthProfile>(cancellationToken: cancellationToken)
+            : null;
+    }
+
+    private OAuthProviderSettings? GetProviderSettings(string provider) => provider switch
+    {
+        "google" => _oauthSettings.Google,
+        _ => null
+    };
+
+    private static string NormalizeProvider(string provider) => provider.Trim().ToLowerInvariant();
+
+    private static string GenerateExternalPassword()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes);
+    }
+
+    private static string EncodeState(string state)
+    {
+        var bytes = Encoding.UTF8.GetBytes(state);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string? DecodeState(string? state)
+    {
+        if (string.IsNullOrWhiteSpace(state))
+        {
+            return null;
+        }
+
+        try
+        {
+            var padded = state.Replace('-', '+').Replace('_', '/');
+            padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
+            return Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string BuildFragment(Dictionary<string, string?> values)
+    {
+        return string.Join("&", values
+            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value!)}"));
+    }
+
+    private sealed record OAuthTokenResponse([property: JsonPropertyName("access_token")] string? AccessToken);
+
+    private sealed record ExternalOAuthProfile(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("email")] string? Email,
+        [property: JsonPropertyName("name")] string? Name);
 
     private static UserProfile BuildUserProfile(ApplicationUser user)
     {
