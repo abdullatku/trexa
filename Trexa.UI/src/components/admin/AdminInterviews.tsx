@@ -4,13 +4,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
 import { Calendar } from '../ui/calendar';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { UserCheck, Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { MoreHorizontal, UserCheck, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { AdminPagination, getPaginationRange } from './AdminPagination';
 
@@ -25,6 +31,8 @@ interface Interview {
   level?: string;
   interviewLevel?: string;
   notes?: string;
+  meetingJoinUrl?: string;
+  videoMeetingId?: string;
   zoomJoinUrl?: string;
   zoomMeetingId?: string;
   preferredCompany?: string;
@@ -320,6 +328,18 @@ export function AdminInterviews() {
     }
   };
 
+  const openAssignDialog = (interview: Interview) => {
+    setSelectedInterview(interview);
+    setSelectedInterviewer(interview.interviewerId ?? '');
+    setSelectedDate(undefined);
+    setSelectedTimeSlot('');
+    setAssignmentFee(String(interview.interviewerFee ?? users.find(u => u.id === interview.interviewerId)?.defaultInterviewerFee ?? 0));
+  };
+
+  const isFinalInterviewStatus = (interview: Interview) => {
+    return interview.status === 'completed' || interview.status === 'cancelled';
+  };
+
   const formatDateTimeForInput = (value: string) => {
     if (!value || value === 'pending') {
       return '';
@@ -489,7 +509,7 @@ export function AdminInterviews() {
                   <TableHead>Skill</TableHead>
                   <TableHead>Level</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="w-16 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -502,31 +522,27 @@ export function AdminInterviews() {
                     </TableCell>
                     <TableCell className="text-sm">{interview.interviewLevel || 'N/A'}</TableCell>
                     <TableCell className="text-sm max-w-xs truncate">{interview.notes || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => {
-                            setSelectedInterview(interview);
-                            setSelectedInterviewer(interview.interviewerId ?? '');
-                            setSelectedDate(undefined);
-                            setSelectedTimeSlot('');
-                            setAssignmentFee(String(interview.interviewerFee ?? users.find(u => u.id === interview.interviewerId)?.defaultInterviewerFee ?? 0));
-                          }}
-                        >
-                          <UserCheck className="h-4 w-4 mr-1" />
-                          Assign
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleCancelInterview(interview)}
-                          disabled={updatingInterviewId === interview.id}
-                        >
-                          {updatingInterviewId === interview.id ? 'Cancelling...' : 'Cancel'}
-                        </Button>
-                      </div>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Open interview actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openAssignDialog(interview)}>
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Assign
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleCancelInterview(interview)}
+                            disabled={updatingInterviewId === interview.id}
+                            variant="destructive"
+                          >
+                            {updatingInterviewId === interview.id ? 'Cancelling...' : 'Cancel'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -573,7 +589,7 @@ export function AdminInterviews() {
                   <TableHead>Scheduled Date</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="w-16 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -598,40 +614,36 @@ export function AdminInterviews() {
                         {interview.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedInterview(interview);
-                            setSelectedInterviewer(interview.interviewerId ?? '');
-                            setSelectedDate(undefined);
-                            setSelectedTimeSlot('');
-                            setAssignmentFee(String(interview.interviewerFee ?? users.find(u => u.id === interview.interviewerId)?.defaultInterviewerFee ?? 0));
-                          }}
-                          disabled={interview.status === 'completed' || interview.status === 'cancelled'}
-                        >
-                          <UserCheck className="h-4 w-4 mr-1" />
-                          Reassign
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => openRescheduleDialog(interview)}
-                          disabled={interview.status === 'completed' || interview.status === 'cancelled'}
-                        >
-                          Reschedule
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleCancelInterview(interview)}
-                          disabled={interview.status === 'completed' || interview.status === 'cancelled' || updatingInterviewId === interview.id}
-                        >
-                          {updatingInterviewId === interview.id ? 'Cancelling...' : 'Cancel'}
-                        </Button>
-                      </div>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Open interview actions">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => openAssignDialog(interview)}
+                            disabled={isFinalInterviewStatus(interview)}
+                          >
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Reassign
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openRescheduleDialog(interview)}
+                            disabled={isFinalInterviewStatus(interview)}
+                          >
+                            Reschedule
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleCancelInterview(interview)}
+                            disabled={isFinalInterviewStatus(interview) || updatingInterviewId === interview.id}
+                            variant="destructive"
+                          >
+                            {updatingInterviewId === interview.id ? 'Cancelling...' : 'Cancel'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}

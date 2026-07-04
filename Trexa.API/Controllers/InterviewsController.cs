@@ -20,6 +20,7 @@ public sealed class InterviewsController : ControllerBase
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
+    private readonly IVideoConferenceService _videoConferenceService;
     private readonly DynamoDbSettings _settings;
 
     public InterviewsController(
@@ -27,12 +28,14 @@ public sealed class InterviewsController : ControllerBase
         IUserRepository userRepository,
         ISubscriptionRepository subscriptionRepository,
         IEmailService emailService,
+        IVideoConferenceService videoConferenceService,
         IOptions<DynamoDbSettings> settings)
     {
         _store = store;
         _subscriptionRepository = subscriptionRepository;
         _userRepository = userRepository;
         _emailService = emailService;
+        _videoConferenceService = videoConferenceService;
         _settings = settings.Value;
     }
 
@@ -513,6 +516,41 @@ public sealed class InterviewsController : ControllerBase
         return Ok(new { message = "Feedback submitted successfully" });
     }
 
+    [HttpPost("interviews/{id}/recording/sync")]
+    public async Task<IActionResult> SyncInterviewRecording(string id, CancellationToken cancellationToken)
+    {
+        var role = User.GetRole();
+        var userId = User.GetUserId();
+
+        if (role is not ("admin" or "interviewer") || string.IsNullOrWhiteSpace(userId))
+        {
+            return Forbid();
+        }
+
+        var interview = await _store.GetByIdAsync<Interview>(_settings.InterviewsTable, id, cancellationToken);
+        if (interview is null)
+        {
+            return NotFound(new { error = "Interview not found" });
+        }
+
+        if (role == "interviewer" && interview.InterviewerId != userId)
+        {
+            return Forbid();
+        }
+
+        var result = await TrySyncRecordingAsync(interview, cancellationToken);
+        return Ok(new
+        {
+            recording = new
+            {
+                saved = result.Saved,
+                status = interview.RecordingStatus,
+                url = interview.RecordingUrl,
+                syncedAt = interview.RecordingSyncedAt
+            }
+        });
+    }
+
     [HttpPost("interviews/{id}/student-feedback")]
     public async Task<IActionResult> SubmitStudentFeedback(string id, [FromBody] Dictionary<string, object> feedback, CancellationToken cancellationToken)
     {
@@ -535,8 +573,8 @@ public sealed class InterviewsController : ControllerBase
         return Ok(new { message = "Student feedback submitted successfully" });
     }
 
-    [HttpPost("interviews/{id}/zoom")]
-    public async Task<IActionResult> CreateZoomMeeting(string id, CancellationToken cancellationToken)
+    [HttpPost("interviews/{id}/meeting")]
+    public async Task<IActionResult> CreateVideoMeeting(string id, CancellationToken cancellationToken)
     {
         var role = User.GetRole();
         if (role is not ("interviewer" or "admin"))
@@ -550,23 +588,165 @@ public sealed class InterviewsController : ControllerBase
             return NotFound(new { error = "Interview not found" });
         }
 
-        var meetingId = Random.Shared.Next(100000000, 999999999).ToString();
-        var password = Guid.NewGuid().ToString("N")[..8];
+        if (role == "interviewer" && interview.InterviewerId != User.GetUserId())
+        {
+            return Forbid();
+        }
 
-        interview.ZoomMeetingId = meetingId;
-        interview.ZoomPassword = password;
-        interview.ZoomJoinUrl = $"https://zoom.us/j/{meetingId}?pwd={password}";
-        interview.ZoomStartUrl = $"https://zoom.us/s/{meetingId}?zak={Guid.NewGuid():N}";
+        VideoMeetingResult meeting;
+        try
+        {
+            meeting = await _videoConferenceService.CreateMeetingAsync(interview, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = ex.Message });
+        }
+
+        interview.MeetingProvider = "cal.com";
+        interview.VideoMeetingId = meeting.MeetingId;
+        interview.MeetingPassword = meeting.Password;
+        interview.MeetingJoinUrl = meeting.JoinUrl;
+        interview.MeetingStartUrl = meeting.StartUrl;
+        interview.ZoomMeetingId = meeting.MeetingId;
+        interview.ZoomPassword = meeting.Password;
+        interview.ZoomJoinUrl = meeting.JoinUrl;
+        interview.ZoomStartUrl = meeting.StartUrl;
 
         await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
 
         return Ok(new
         {
-            message = "Zoom meeting created successfully",
-            zoomJoinUrl = interview.ZoomJoinUrl,
-            zoomMeetingId = interview.ZoomMeetingId,
-            zoomPassword = interview.ZoomPassword
+            message = "Meeting created successfully",
+            meetingJoinUrl = interview.MeetingJoinUrl,
+            meetingId = interview.VideoMeetingId,
+            meetingPassword = interview.MeetingPassword,
+            meetingProvider = interview.MeetingProvider
         });
+    }
+
+    [HttpPost("interviews/{id}/meeting/start")]
+    public async Task<IActionResult> StartVideoMeeting(string id, CancellationToken cancellationToken)
+    {
+        var role = User.GetRole();
+        if (role is not ("interviewer" or "admin"))
+        {
+            return Forbid();
+        }
+
+        var interview = await _store.GetByIdAsync<Interview>(_settings.InterviewsTable, id, cancellationToken);
+        if (interview is null)
+        {
+            return NotFound(new { error = "Interview not found" });
+        }
+
+        if (role == "interviewer" && interview.InterviewerId != User.GetUserId())
+        {
+            return Forbid();
+        }
+
+        var meetingJoinUrl = string.IsNullOrWhiteSpace(interview.MeetingJoinUrl) ? interview.ZoomJoinUrl : interview.MeetingJoinUrl;
+        var meetingStartUrl = string.IsNullOrWhiteSpace(interview.MeetingStartUrl) ? interview.ZoomStartUrl : interview.MeetingStartUrl;
+
+        if (string.IsNullOrWhiteSpace(meetingJoinUrl))
+        {
+            return BadRequest(new { error = "Create the meeting before starting the interview" });
+        }
+
+        MarkMeetingJoined(interview);
+        await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+
+        return Ok(new
+        {
+            message = "Interview meeting started",
+            meetingJoinUrl,
+            meetingStartUrl,
+            meetingStartedAt = interview.MeetingStartedAt,
+            status = interview.Status
+        });
+    }
+
+    [HttpPost("interviews/{id}/meeting/join")]
+    public async Task<IActionResult> JoinVideoMeeting(string id, CancellationToken cancellationToken)
+    {
+        var role = User.GetRole();
+        var userId = User.GetUserId();
+        if (string.IsNullOrWhiteSpace(role) || string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        var interview = await _store.GetByIdAsync<Interview>(_settings.InterviewsTable, id, cancellationToken);
+        if (interview is null)
+        {
+            return NotFound(new { error = "Interview not found" });
+        }
+
+        var canJoin = role == "admin" ||
+                      interview.StudentId == userId ||
+                      interview.InterviewerId == userId;
+
+        if (!canJoin)
+        {
+            return Forbid();
+        }
+
+        var meetingJoinUrl = string.IsNullOrWhiteSpace(interview.MeetingJoinUrl) ? interview.ZoomJoinUrl : interview.MeetingJoinUrl;
+        if (string.IsNullOrWhiteSpace(meetingJoinUrl))
+        {
+            return BadRequest(new { error = "Meeting link is not available yet" });
+        }
+
+        MarkMeetingJoined(interview);
+        await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+
+        return Ok(new
+        {
+            meetingJoinUrl,
+            meetingStartedAt = interview.MeetingStartedAt,
+            status = interview.Status
+        });
+    }
+
+    private static void MarkMeetingJoined(Interview interview)
+    {
+        interview.MeetingStartedAt ??= DateTime.UtcNow;
+
+        if (interview.Status is not ("completed" or "cancelled" or "declined"))
+        {
+            interview.Status = "in_progress";
+        }
+    }
+
+    private async Task<VideoRecordingSyncResult> TrySyncRecordingAsync(Interview interview, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _videoConferenceService.SyncRecordingAsync(interview, cancellationToken);
+            interview.RecordingStatus = result.Status;
+
+            if (result.Saved && !string.IsNullOrWhiteSpace(result.StorageKey))
+            {
+                interview.RecordingStorageKey = result.StorageKey;
+                interview.RecordingProviderId = result.ProviderRecordingId;
+                interview.RecordingSyncedAt = DateTime.UtcNow;
+                interview.RecordingUrl = Url.ActionLink(
+                    action: "GetUploadedFile",
+                    controller: "Files",
+                    values: new { key = result.StorageKey },
+                    protocol: Request.Scheme,
+                    host: Request.Host.ToString());
+            }
+
+            await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+            return result;
+        }
+        catch (InvalidOperationException ex)
+        {
+            interview.RecordingStatus = $"failed: {ex.Message}";
+            await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+            return new VideoRecordingSyncResult(false, interview.RecordingStatus);
+        }
     }
 
 
@@ -588,7 +768,6 @@ public sealed class InterviewsController : ControllerBase
         var body = $"{actionText}\n\nInterview ID: {interview.Id}\nStatus: {interview.Status}\nScheduled Date: {interview.ScheduledDate}";
         await _emailService.SendAsync(recipients, $"[Trexa] {subject}", body, cancellationToken);
     }
-
     private async Task<List<EmailRecipient>> GetNotificationRecipientsAsync(
         Interview interview,
         bool notifyStudent,

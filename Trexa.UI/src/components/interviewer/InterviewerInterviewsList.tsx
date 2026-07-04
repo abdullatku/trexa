@@ -20,15 +20,23 @@ interface Interview {
   notes: string;
   feedback: any;
   timezone?: string;
+  meetingJoinUrl?: string;
+  meetingStartUrl?: string;
+  videoMeetingId?: string;
+  meetingPassword?: string;
   zoomJoinUrl?: string;
   zoomStartUrl?: string;
   zoomMeetingId?: string;
   zoomPassword?: string;
+  meetingStartedAt?: string | null;
   acceptedByInterviewer?: boolean;
   skill?: string;
   level?: string;
   interviewLevel?: string;
   cvUrl?: string;
+  recordingUrl?: string;
+  recordingStatus?: string;
+  recordingSyncedAt?: string | null;
   interviewerFee?: number | null;
   interviewerPaymentReleased?: boolean;
   interviewerPaymentReleasedAt?: string | null;
@@ -285,11 +293,11 @@ export function InterviewerInterviewsList() {
     }
   };
 
-  const handleCreateZoomMeeting = async (interviewId: string) => {
+  const handleCreateMeeting = async (interviewId: string) => {
     setActionLoading(interviewId);
     try {
       const response = await fetch(
-        `/interviews/${interviewId}/zoom`,
+        `/interviews/${interviewId}/meeting`,
         {
           method: 'POST',
           headers: {
@@ -301,14 +309,79 @@ export function InterviewerInterviewsList() {
       const data = await parseJsonSafe(response);
 
       if (!response.ok) {
-        throw new Error(getApiErrorMessage(response, data, 'Failed to create Zoom meeting'));
+        throw new Error(getApiErrorMessage(response, data, 'Failed to create meeting'));
       }
 
-      toast.success('Zoom meeting created successfully!');
+      toast.success('Meeting created successfully!');
       fetchData(); // Refresh the list
     } catch (error: any) {
-      console.error('Error creating Zoom meeting:', error);
-      toast.error(error.message || 'Failed to create Zoom meeting');
+      console.error('Error creating meeting:', error);
+      toast.error(error.message || 'Failed to create meeting');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleStartMeeting = async (interviewId: string) => {
+    setActionLoading(interviewId);
+    try {
+      const response = await fetch(
+        `/interviews/${interviewId}/meeting/start`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await parseJsonSafe(response);
+
+      if (!response.ok) {
+        throw new Error(getApiErrorMessage(response, data, 'Failed to start interview'));
+      }
+
+      const meetingUrl = data?.meetingStartUrl || data?.meetingJoinUrl;
+      if (meetingUrl) {
+        window.open(meetingUrl, '_blank');
+      }
+
+      toast.success('Interview started');
+      fetchData();
+    } catch (error: any) {
+      console.error('Error starting interview:', error);
+      toast.error(error.message || 'Failed to start interview');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSyncRecording = async (interview: Interview) => {
+    setActionLoading(interview.id);
+    try {
+      const response = await fetch(`/interviews/${interview.id}/recording/sync`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await parseJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(getApiErrorMessage(response, data, 'Failed to sync recording'));
+      }
+
+      if (data?.recording?.url) {
+        toast.success('Recording saved');
+        window.open(data.recording.url, '_blank');
+      } else {
+        toast.info(`Recording ${data?.recording?.status || 'is not available yet'}`);
+      }
+
+      fetchData();
+    } catch (error: any) {
+      console.error('Error syncing recording:', error);
+      toast.error(error.message || 'Failed to sync recording');
     } finally {
       setActionLoading(null);
     }
@@ -503,9 +576,9 @@ export function InterviewerInterviewsList() {
                   {/* All Action Buttons in One Row */}
                   <div className="flex flex-wrap gap-1.5 mt-auto pt-2 border-t">
                     {/* Create Meeting Button */}
-                    {interview.acceptedByInterviewer && !interview.zoomJoinUrl && interview.status !== 'completed' && (
+                    {interview.acceptedByInterviewer && !(interview.meetingJoinUrl || interview.zoomJoinUrl) && interview.status !== 'completed' && (
                       <Button
-                        onClick={() => handleCreateZoomMeeting(interview.id)}
+                        onClick={() => handleCreateMeeting(interview.id)}
                         disabled={actionLoading === interview.id}
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 h-6 text-xs px-3"
@@ -516,14 +589,15 @@ export function InterviewerInterviewsList() {
                     )}
 
                     {/* Start Interview Button */}
-                    {interview.zoomJoinUrl && interview.status !== 'completed' && (
+                    {(interview.meetingJoinUrl || interview.zoomJoinUrl) && interview.status !== 'completed' && (
                       <Button
-                        onClick={() => window.open(interview.zoomStartUrl || interview.zoomJoinUrl, '_blank')}
+                        onClick={() => handleStartMeeting(interview.id)}
+                        disabled={actionLoading === interview.id}
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 h-6 text-xs px-3"
                       >
                         <Video className="h-3 w-3 mr-1" />
-                        Start Interview
+                        {actionLoading === interview.id ? 'Starting...' : interview.meetingStartedAt ? 'Join Interview' : 'Start Interview'}
                       </Button>
                     )}
 
@@ -550,6 +624,19 @@ export function InterviewerInterviewsList() {
                       >
                         <FileText className="h-3 w-3 mr-1" />
                         Feedback
+                      </Button>
+                    )}
+
+                    {interview.status === 'completed' && (
+                      <Button
+                        onClick={() => interview.recordingUrl ? window.open(interview.recordingUrl, '_blank') : handleSyncRecording(interview)}
+                        disabled={actionLoading === interview.id}
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs px-3"
+                      >
+                        <Video className="h-3 w-3 mr-1" />
+                        {interview.recordingUrl ? 'View Recording' : actionLoading === interview.id ? 'Syncing...' : 'Sync Recording'}
                       </Button>
                     )}
 

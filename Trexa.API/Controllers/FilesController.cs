@@ -118,8 +118,11 @@ public sealed class FilesController : ControllerBase
     {
         var normalizedKey = key.TrimStart('/');
         var prefix = (_settings.KeyPrefix ?? string.Empty).Trim('/');
-        var expectedPrefix = string.IsNullOrWhiteSpace(prefix) ? "cvs/" : $"{prefix}/cvs/";
-        return normalizedKey.StartsWith(expectedPrefix, StringComparison.Ordinal) &&
+        var allowedPrefixes = string.IsNullOrWhiteSpace(prefix)
+            ? new[] { "cvs/", "recordings/" }
+            : new[] { $"{prefix}/cvs/", $"{prefix}/recordings/" };
+
+        return allowedPrefixes.Any(allowedPrefix => normalizedKey.StartsWith(allowedPrefix, StringComparison.Ordinal)) &&
                !normalizedKey.Contains("..", StringComparison.Ordinal);
     }
 }

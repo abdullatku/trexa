@@ -19,4 +19,5 @@ public sealed class DynamoDbSettings
     public string PlansTable { get; set; } = "trexa_plans";
     public string CompanyLevelsTable { get; set; } = "trexa_company_levels";
     public string SubscriptionsTable { get; set; } = "trexa_subscriptions";
+    public string AppSettingsTable { get; set; } = "trexa_app_settings";
 }

@@ -10,7 +10,7 @@ import { RequestInterview } from './RequestInterview';
 import { StudentFeedbackModal } from './StudentFeedbackModal';
 import { apiBaseUrl } from "../../config/api";
 import { Calendar, Clock, FileText, Video, RefreshCw, AlertCircle, User, CreditCard, MessageSquare, XCircle, RotateCcw, Building2, Mail, Briefcase } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface Interview {
   id: string;
@@ -24,13 +24,20 @@ interface Interview {
   studentFeedback?: any;
   createdAt: string;
   timezone?: string;
+  meetingJoinUrl?: string;
+  videoMeetingId?: string;
+  meetingPassword?: string;
   zoomJoinUrl?: string;
   zoomMeetingId?: string;
   zoomPassword?: string;
+  meetingStartedAt?: string | null;
   skill?: string;
   level?: string;
   interviewLevel?: string;
   cvUrl?: string;
+  recordingUrl?: string;
+  recordingStatus?: string;
+  recordingSyncedAt?: string | null;
   acceptedByInterviewer?: boolean;
   rescheduleCount?: number;
   rescheduleReason?: string;
@@ -63,6 +70,7 @@ export function StudentInterviewsList() {
   const [refreshing, setRefreshing] = useState(false);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+  const [joiningInterviewId, setJoiningInterviewId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -209,6 +217,37 @@ export function StudentInterviewsList() {
     }
   };
 
+  const handleJoinMeeting = async (interview: Interview) => {
+    if (!accessToken) return;
+
+    setJoiningInterviewId(interview.id);
+    try {
+      const response = await fetch(`/interviews/${interview.id}/meeting/join`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to join meeting');
+      }
+
+      const meetingUrl = data.meetingJoinUrl || interview.meetingJoinUrl || interview.zoomJoinUrl;
+      if (meetingUrl) {
+        window.open(meetingUrl, '_blank');
+      }
+
+      fetchData();
+    } catch (error: any) {
+      console.error('Error joining meeting:', error);
+      toast.error(error.message || 'Failed to join meeting');
+    } finally {
+      setJoiningInterviewId(null);
+    }
+  };
+
   const handleRequestReschedule = async (interviewId: string, rescheduleCount: number) => {
     if (!accessToken) return;
 
@@ -251,13 +290,17 @@ export function StudentInterviewsList() {
   const pendingInterviews = interviews.filter(i => i.status === 'pending');
 
   const upcomingInterviews = interviews.filter(
-    i => (i.status === 'scheduled' || i.status === 'accepted' || i.status === 'reschedule_requested') && 
-         new Date(i.scheduledDate) > new Date() &&
-         i.scheduledDate !== 'pending'
+    i => i.status === 'in_progress' ||
+         ((i.status === 'scheduled' || i.status === 'accepted' || i.status === 'reschedule_requested') &&
+          new Date(i.scheduledDate) > new Date() &&
+          i.scheduledDate !== 'pending')
   );
 
   const pastInterviews = interviews.filter(
-    i => i.status === 'completed' || i.status === 'declined' || new Date(i.scheduledDate) <= new Date()
+    i => i.status === 'completed' ||
+         i.status === 'declined' ||
+         i.status === 'cancelled' ||
+         (i.status !== 'in_progress' && new Date(i.scheduledDate) <= new Date())
   );
 
   if (loading) {
@@ -432,24 +475,25 @@ export function StudentInterviewsList() {
                       <p className="text-sm">{interview.notes}</p>
                     </div>
                   )}
-                  {interview.zoomJoinUrl ? (
+                  {(interview.meetingJoinUrl || interview.zoomJoinUrl) ? (
                     <div className="mt-4 space-y-2">
-                      <Button 
-                        onClick={() => window.open(interview.zoomJoinUrl, '_blank')}
+                      <Button
+                        onClick={() => handleJoinMeeting(interview)}
+                        disabled={joiningInterviewId === interview.id}
                         className="w-full bg-blue-600 hover:bg-blue-700"
                         size="lg"
                       >
                         <Video className="h-5 w-5 mr-2" />
-                        Join Interview Now
+                        {joiningInterviewId === interview.id ? 'Joining...' : 'Join Interview Now'}
                       </Button>
-                      {interview.zoomMeetingId && (
+                      {(interview.videoMeetingId || interview.zoomMeetingId) && (
                         <p className="text-sm text-gray-600 text-center">
-                          Meeting ID: <strong>{interview.zoomMeetingId}</strong>
+                          Meeting ID: <strong>{interview.videoMeetingId || interview.zoomMeetingId}</strong>
                         </p>
                       )}
-                      {interview.zoomPassword && (
+                      {(interview.meetingPassword || interview.zoomPassword) && (
                         <p className="text-sm text-gray-600 text-center">
-                          Password: <strong>{interview.zoomPassword}</strong>
+                          Password: <strong>{interview.meetingPassword || interview.zoomPassword}</strong>
                         </p>
                       )}
                     </div>
@@ -457,7 +501,7 @@ export function StudentInterviewsList() {
                     <div className="mt-4 space-y-2">
                       <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
                         <p className="text-sm text-yellow-800">
-                          <strong>Note:</strong> The Zoom meeting link will be available once the interviewer creates it.
+                          <strong>Note:</strong> The meeting link will be available once the interviewer creates it.
                         </p>
                       </div>
                       <Button 
@@ -592,6 +636,16 @@ export function StudentInterviewsList() {
                         })}
                       </div>
                     </div>
+                  )}
+                  {interview.recordingUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(interview.recordingUrl, '_blank')}
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      View Recording
+                    </Button>
                   )}
                   {interview.studentFeedback && (
                     <div className="mt-4">

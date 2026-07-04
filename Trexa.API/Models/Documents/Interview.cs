@@ -12,10 +12,21 @@ public sealed class Interview
     public Dictionary<string, object>? Feedback { get; set; }
     public Dictionary<string, object>? StudentFeedback { get; set; }
     public string? Timezone { get; set; }
+    public string? MeetingProvider { get; set; }
+    public string? MeetingJoinUrl { get; set; }
+    public string? MeetingStartUrl { get; set; }
+    public string? VideoMeetingId { get; set; }
+    public string? MeetingPassword { get; set; }
     public string? ZoomJoinUrl { get; set; }
     public string? ZoomStartUrl { get; set; }
     public string? ZoomMeetingId { get; set; }
     public string? ZoomPassword { get; set; }
+    public DateTime? MeetingStartedAt { get; set; }
+    public string? RecordingUrl { get; set; }
+    public string? RecordingStorageKey { get; set; }
+    public string? RecordingProviderId { get; set; }
+    public string? RecordingStatus { get; set; }
+    public DateTime? RecordingSyncedAt { get; set; }
     public bool AcceptedByInterviewer { get; set; }
     public string? Skill { get; set; }
     public string? Level { get; set; }

@@ -17,15 +17,18 @@ public sealed class AdminController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
     private readonly IDynamoDocumentStore _store;
+    private readonly CalComSettings _calComSettings;
     private readonly DynamoDbSettings _settings;
 
     public AdminController(
         IDynamoDocumentStore store,
         IUserRepository userRepository,
+        IOptions<CalComSettings> calComSettings,
         IOptions<DynamoDbSettings> settings)
     {
         _userRepository = userRepository;
         _store = store;
+        _calComSettings = calComSettings.Value;
         _settings = settings.Value;
     }
 
@@ -192,6 +195,17 @@ public sealed class AdminController : ControllerBase
         });
     }
 
+    [HttpGet("cal-com")]
+    public IActionResult GetCalComConfiguration()
+    {
+        if (!User.IsInRole("admin"))
+        {
+            return Forbid();
+        }
+
+        return Ok(new { configuration = MapCalComConfiguration(_calComSettings) });
+    }
+
     [HttpGet("analytics")]
     public async Task<IActionResult> GetAnalytics(CancellationToken cancellationToken)
     {
@@ -317,6 +331,27 @@ public sealed class AdminController : ControllerBase
         if (input is long l) return l;
         if (double.TryParse(input.ToString(), out var parsed)) return parsed;
         return null;
+    }
+
+    private static object MapCalComConfiguration(CalComSettings configuration)
+    {
+        return new
+        {
+            apiBaseUrl = configuration.ApiBaseUrl,
+            apiVersion = configuration.ApiVersion,
+            hasApiKey = !string.IsNullOrWhiteSpace(configuration.ApiKey),
+            eventTypeId = configuration.EventTypeId,
+            eventTypeSlug = configuration.EventTypeSlug,
+            username = configuration.Username,
+            teamSlug = configuration.TeamSlug,
+            organizationSlug = configuration.OrganizationSlug,
+            timezone = configuration.Timezone,
+            defaultDurationMinutes = configuration.DefaultDurationMinutes,
+            useDefaultDurationMinutes = configuration.UseDefaultDurationMinutes,
+            addInterviewerAsGuest = configuration.AddInterviewerAsGuest,
+            allowConflicts = configuration.AllowConflicts,
+            allowBookingOutOfBounds = configuration.AllowBookingOutOfBounds
+        };
     }
 
     public sealed record CreateUserRequest(

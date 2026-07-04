@@ -25,6 +25,7 @@ builder.Services.Configure<S3StorageSettings>(builder.Configuration.GetSection("
 builder.Services.Configure<RazorpaySettings>(builder.Configuration.GetSection("Razorpay"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 builder.Services.Configure<OAuthSettings>(builder.Configuration.GetSection("OAuth"));
+builder.Services.Configure<CalComSettings>(builder.Configuration.GetSection("CalCom"));
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
 var dynamoSettings = builder.Configuration.GetSection("DynamoDb").Get<DynamoDbSettings>() ?? new DynamoDbSettings();
@@ -169,6 +170,7 @@ if(!builder.Environment.IsDevelopment())
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IVideoConferenceService, CalComMeetingService>();
 
 var app = builder.Build();
 

@@ -64,7 +64,7 @@ public sealed class DynamoDocumentStore : IDynamoDocumentStore
             }
         }, cancellationToken);
 
-        return response.Item.Count == 0 ? null : DeserializeItem<T>(response.Item);
+        return response.Item is null || response.Item.Count == 0 ? null : DeserializeItem<T>(response.Item);
     }
 
     public async Task UpsertAsync<T>(string tableName, T document, CancellationToken cancellationToken = default) where T : class, new()

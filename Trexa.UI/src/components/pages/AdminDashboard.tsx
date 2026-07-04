@@ -6,8 +6,9 @@ import { AdminFeedbackForms } from '../admin/AdminFeedbackForms';
 import { AdminPlans } from '../admin/AdminPlans';
 import { AdminPayments } from '../admin/AdminPayments';
 import { AdminAnalytics } from '../admin/AdminAnalytics';
+import { AdminCalCom } from '../admin/AdminCalCom';
 import { DashboardLayout } from '../layout/DashboardLayout';
-import { Users, Calendar, Briefcase, FileText, CreditCard, BarChart3 } from 'lucide-react';
+import { Users, Calendar, Briefcase, FileText, CreditCard, BarChart3, Video } from 'lucide-react';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -56,6 +57,12 @@ export function AdminDashboard() {
       path: '/admin/payments',
       onClick: () => navigate('/admin/payments'),
     },
+    {
+      label: 'Cal.com',
+      icon: Video,
+      path: '/admin/cal-com',
+      onClick: () => navigate('/admin/cal-com'),
+    },
   ];
 
   return (
@@ -68,6 +75,7 @@ export function AdminDashboard() {
         <Route path="feedback-forms" element={<AdminFeedbackForms />} />
         <Route path="plans" element={<AdminPlans />} />
         <Route path="payments" element={<AdminPayments />} />
+        <Route path="cal-com" element={<AdminCalCom />} />
       </Routes>
     </DashboardLayout>
   );

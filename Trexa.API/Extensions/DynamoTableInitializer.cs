@@ -21,7 +21,8 @@ public static class DynamoTableInitializer
             settings.AvailabilityTable,
             settings.PlansTable,
             settings.CompanyLevelsTable,
-            settings.SubscriptionsTable
+            settings.SubscriptionsTable,
+            settings.AppSettingsTable
         }
         .Where(name => !string.IsNullOrWhiteSpace(name))
         .Distinct(StringComparer.Ordinal)
