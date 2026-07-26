@@ -71,6 +71,7 @@ export function StudentInterviewsList() {
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [joiningInterviewId, setJoiningInterviewId] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export function StudentInterviewsList() {
 
     try {
       console.log('Fetching interviews with token:', accessToken.substring(0, 20) + '...');
-      const [interviewsRes, designationsRes, interviewersRes] = await Promise.all([
+      const [interviewsRes, designationsRes, interviewersRes, subscriptionRes] = await Promise.all([
         fetch(`/interviews`, {
           headers: { 'Authorization': `Bearer ${accessToken}` },
         }),
@@ -100,6 +101,9 @@ export function StudentInterviewsList() {
           headers: { 'Authorization': `Bearer ${accessToken}` },
         }),
         fetch(`/interviewers`, {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        }),
+        fetch(`/subscription`, {
           headers: { 'Authorization': `Bearer ${accessToken}` },
         }),
       ]);
@@ -126,6 +130,10 @@ export function StudentInterviewsList() {
 
       setInterviews(interviewsData.interviews || []);
       setDesignations(designationsData.designations || []);
+      if (subscriptionRes.ok) {
+        const subscriptionData = await subscriptionRes.json();
+        setSubscription(subscriptionData.subscription || null);
+      }
 
       // Fetch interviewers separately with error handling
       if (interviewersRes.ok) {
@@ -292,15 +300,13 @@ export function StudentInterviewsList() {
   const upcomingInterviews = interviews.filter(
     i => i.status === 'in_progress' ||
          ((i.status === 'scheduled' || i.status === 'accepted' || i.status === 'reschedule_requested') &&
-          new Date(i.scheduledDate) > new Date() &&
           i.scheduledDate !== 'pending')
   );
 
   const pastInterviews = interviews.filter(
     i => i.status === 'completed' ||
          i.status === 'declined' ||
-         i.status === 'cancelled' ||
-         (i.status !== 'in_progress' && new Date(i.scheduledDate) <= new Date())
+         i.status === 'cancelled'
   );
 
   if (loading) {
@@ -317,6 +323,11 @@ export function StudentInterviewsList() {
         <div className="student-interviews-heading min-w-0">
           <h2 className="text-2xl mb-2">My Interviews</h2>
           <p className="text-gray-600">View and manage your scheduled and past interviews</p>
+          {subscription && (
+            <p className="text-sm text-indigo-700 mt-1">
+              Remaining interviews in current plan: <strong>{subscription.interviewsRemaining ?? 0}</strong>
+            </p>
+          )}
         </div>
         <div className="student-interviews-actions flex gap-2">
           <RequestInterview onSuccess={fetchData} triggerClassName="student-primary-action" />
@@ -401,15 +412,23 @@ export function StudentInterviewsList() {
                     </div>
                   )}
 
-                  <div className="mt-4 pt-3 border-t">
+                  <div className="mt-4 pt-3 border-t flex flex-wrap items-center justify-end gap-2 overflow-hidden">
+                    <RequestInterview
+                      onSuccess={fetchData}
+                      editInterview={interview}
+                      triggerLabel="Edit Request"
+                      triggerVariant="outline"
+                      triggerSize="sm"
+                      triggerClassName="student-card-action"
+                    />
                     <Button
                       onClick={() => handleCancelInterview(interview.id)}
                       variant="destructive"
                       size="sm"
-                      className="w-full"
+                      className="student-card-action"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
-                      Cancel Interview Request
+                      Cancel
                     </Button>
                   </div>
                 </CardContent>

@@ -106,10 +106,10 @@ public sealed class AuthController : ControllerBase
 
     [HttpGet("external/{provider}")]
     [AllowAnonymous]
-    public IActionResult ExternalSignIn(string provider, [FromQuery] string? returnUrl = null)
+    public IActionResult ExternalSignIn(string provider, [FromQuery] string? returnUrl = null, [FromQuery] string? frontendCallbackUrl = null)
     {
         var redirectUri = BuildExternalCallbackUrl(provider);
-        var result = _authService.BuildExternalAuthorizationUrl(provider, redirectUri, returnUrl);
+        var result = _authService.BuildExternalAuthorizationUrl(provider, redirectUri, returnUrl, frontendCallbackUrl);
         if (!result.Success)
         {
             return StatusCode(result.StatusCode, new { error = result.Error });
@@ -198,11 +198,14 @@ public sealed class AuthController : ControllerBase
 
     private string BuildExternalCallbackUrl(string provider)
     {
+        var forwardedProto = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var forwardedHost = Request.Headers["X-Forwarded-Host"].FirstOrDefault();
+
         return Url.ActionLink(
             action: nameof(ExternalSignInCallback),
             controller: "Auth",
             values: new { provider },
-            protocol: Request.Scheme,
-            host: Request.Host.ToString())!;
+            protocol: string.IsNullOrWhiteSpace(forwardedProto) ? Request.Scheme : forwardedProto.Split(',')[0].Trim(),
+            host: string.IsNullOrWhiteSpace(forwardedHost) ? Request.Host.ToString() : forwardedHost.Split(',')[0].Trim())!;
     }
 }

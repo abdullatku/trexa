@@ -73,5 +73,18 @@ public sealed class DynamoSubscriptionRepository : ISubscriptionRepository
         return true;
     }
 
+    public async Task<bool> RestoreInterviewCreditAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var active = await GetActiveByUserIdAsync(userId, cancellationToken);
+        if (active is null)
+        {
+            return false;
+        }
+
+        active.InterviewsRemaining += 1;
+        await _context.SaveAsync(active.ToDynamo(), Config(), cancellationToken);
+        return true;
+    }
+
     private DynamoDBOperationConfig Config() => new() { OverrideTableName = _settings.SubscriptionsTable };
 }

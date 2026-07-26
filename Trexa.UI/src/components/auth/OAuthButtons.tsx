@@ -15,7 +15,12 @@ function GoogleLogo() {
 export function OAuthButtons() {
   const startOAuth = (provider: 'google') => {
     const returnUrl = `${window.location.pathname}${window.location.search}`;
-    window.location.href = apiUrl(`/auth/external/${provider}?returnUrl=${encodeURIComponent(returnUrl)}`);
+    const frontendCallbackUrl = `${window.location.origin}/auth/callback`;
+    const params = new URLSearchParams({
+      returnUrl,
+      frontendCallbackUrl,
+    });
+    window.location.href = apiUrl(`/auth/external/${provider}?${params.toString()}`);
   };
 
   return (

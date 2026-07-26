@@ -97,7 +97,8 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
   const [scheduledTime, setScheduledTime] = useState('');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [notes, setNotes] = useState('');
-  const [skill, setSkill] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [customSkill, setCustomSkill] = useState('');
   const [level, setLevel] = useState('');
   const [interviewLevel, setInterviewLevel] = useState('');
   const [preferredCompany, setPreferredCompany] = useState('');
@@ -189,7 +190,7 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
           
           slots.push({
             time,
-            available: !isBooked,
+            available: !isBooked && !isPastTimeSlot(scheduledDate, time),
           });
         }
         
@@ -264,6 +265,12 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
 
   const handleSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (selectedSkills.length === 0) {
+      toast.error('Please select at least one skill');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -277,6 +284,9 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
       }
 
       const dateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (dateTime <= new Date()) {
+        throw new Error('Please select a future time slot');
+      }
 
       const response = await fetch(
         `/interviews`,
@@ -291,7 +301,7 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
             scheduledDate: dateTime.toISOString(),
             timezone,
             notes,
-            skill,
+            skill: selectedSkills.join(', '),
             level,
             interviewLevel,
             cvUrl: uploadedCvUrl,
@@ -317,6 +327,13 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const isPastTimeSlot = (date: string, time: string) => {
+    if (!date || !time) return false;
+    const today = new Date().toISOString().split('T')[0];
+    if (date !== today) return false;
+    return new Date(`${date}T${time}`) <= new Date();
   };
 
   const handleRequestDesignation = async (e: React.FormEvent) => {
@@ -423,10 +440,14 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="skill">Skill *</Label>
-            <Select value={skill} onValueChange={setSkill} required>
+            <Label htmlFor="skill">Skills *</Label>
+            <Select value="" onValueChange={(value) => {
+              if (!selectedSkills.includes(value)) {
+                setSelectedSkills([...selectedSkills, value]);
+              }
+            }}>
               <SelectTrigger>
-                <SelectValue placeholder="Select skill" />
+                <SelectValue placeholder="Select skills" />
               </SelectTrigger>
               <SelectContent>
                 {SKILLS.map(skillOption => (
@@ -436,6 +457,42 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
                 ))}
               </SelectContent>
             </Select>
+            {selectedSkills.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedSkills.map((selectedSkill) => (
+                  <Button
+                    key={selectedSkill}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedSkills(selectedSkills.filter((item) => item !== selectedSkill))}
+                  >
+                    {selectedSkill}
+                    <X className="ml-2 h-3 w-3" />
+                  </Button>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={customSkill}
+                onChange={(e) => setCustomSkill(e.target.value)}
+                placeholder="Add secondary skill"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const normalized = customSkill.trim();
+                  if (normalized && !selectedSkills.includes(normalized)) {
+                    setSelectedSkills([...selectedSkills, normalized]);
+                    setCustomSkill('');
+                  }
+                }}
+              >
+                Add
+              </Button>
+            </div>
           </div>
 
           <div>
@@ -548,6 +605,7 @@ export function ScheduleInterview({ onClose }: ScheduleInterviewProps) {
               type="time"
               value={scheduledTime}
               onChange={(e) => setScheduledTime(e.target.value)}
+              min={scheduledDate === new Date().toISOString().split('T')[0] ? new Date().toTimeString().slice(0, 5) : undefined}
               required
             />
           </div>

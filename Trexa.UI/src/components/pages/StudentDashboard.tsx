@@ -39,7 +39,7 @@ export function StudentDashboard() {
   ];
 
   return (
-    <DashboardLayout title="Student Dashboard" menuItems={menuItems}>
+    <DashboardLayout title="Candidate Dashboard" menuItems={menuItems}>
       <Routes>
         <Route index element={<StudentInterviewsList />} />
         <Route path="plans" element={<ViewPlans />} />

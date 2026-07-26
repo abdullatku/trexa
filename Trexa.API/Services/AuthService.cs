@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using Microsoft.Extensions.Options;
@@ -259,7 +260,7 @@ public sealed class AuthService : IAuthService
         return AuthServiceResult<string>.Ok("Password reset successfully");
     }
 
-    public AuthServiceResult<string> BuildExternalAuthorizationUrl(string provider, string redirectUri, string? returnUrl)
+    public AuthServiceResult<string> BuildExternalAuthorizationUrl(string provider, string redirectUri, string? returnUrl, string? frontendCallbackUrl)
     {
         var normalizedProvider = NormalizeProvider(provider);
         var providerSettings = GetProviderSettings(normalizedProvider);
@@ -273,7 +274,9 @@ public sealed class AuthService : IAuthService
             return AuthServiceResult<string>.Fail(StatusCodes.Status500InternalServerError, $"{normalizedProvider} OAuth is not configured");
         }
 
-        var state = EncodeState(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl.Trim());
+        var state = EncodeState(
+            string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl.Trim(),
+            NormalizeFrontendCallbackUrl(frontendCallbackUrl));
 
         var query = HttpUtility.ParseQueryString(string.Empty);
         query["client_id"] = providerSettings.ClientId;
@@ -431,11 +434,9 @@ public sealed class AuthService : IAuthService
 
     public string BuildFrontendOAuthCallbackUrl(AuthResponse response, string? state, string? error = null)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(_oauthSettings.FrontendCallbackUrl)
-            ? "http://localhost:3000/auth/callback"
-            : _oauthSettings.FrontendCallbackUrl.Trim();
-
-        var returnUrl = DecodeState(state) ?? "/";
+        var oauthState = DecodeState(state);
+        var baseUrl = oauthState.FrontendCallbackUrl ?? GetConfiguredFrontendCallbackUrl();
+        var returnUrl = oauthState.ReturnUrl ?? "/";
         var fragment = new Dictionary<string, string?>
         {
             ["accessToken"] = response.AccessToken,
@@ -453,14 +454,13 @@ public sealed class AuthService : IAuthService
 
     public string BuildFrontendOAuthErrorUrl(string? state, string error)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(_oauthSettings.FrontendCallbackUrl)
-            ? "http://localhost:3000/auth/callback"
-            : _oauthSettings.FrontendCallbackUrl.Trim();
+        var oauthState = DecodeState(state);
+        var baseUrl = oauthState.FrontendCallbackUrl ?? GetConfiguredFrontendCallbackUrl();
 
         return $"{baseUrl}#{BuildFragment(new Dictionary<string, string?>
         {
             ["error"] = error,
-            ["returnUrl"] = DecodeState(state) ?? "/"
+            ["returnUrl"] = oauthState.ReturnUrl ?? "/"
         })}";
     }
 
@@ -504,29 +504,71 @@ public sealed class AuthService : IAuthService
         return Convert.ToBase64String(bytes);
     }
 
-    private static string EncodeState(string state)
+    private static string EncodeState(string returnUrl, string? frontendCallbackUrl)
     {
-        var bytes = Encoding.UTF8.GetBytes(state);
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new OAuthState(returnUrl, frontendCallbackUrl)));
         return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
-    private static string? DecodeState(string? state)
+    private static OAuthState DecodeState(string? state)
     {
         if (string.IsNullOrWhiteSpace(state))
         {
-            return null;
+            return new OAuthState("/", null);
         }
 
         try
         {
             var padded = state.Replace('-', '+').Replace('_', '/');
             padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
-            return Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+            if (decoded.TrimStart().StartsWith('{'))
+            {
+                return JsonSerializer.Deserialize<OAuthState>(decoded) ?? new OAuthState("/", null);
+            }
+
+            return new OAuthState(decoded, null);
         }
         catch
         {
+            return new OAuthState("/", null);
+        }
+    }
+
+    private string GetConfiguredFrontendCallbackUrl()
+    {
+        return string.IsNullOrWhiteSpace(_oauthSettings.FrontendCallbackUrl)
+            ? "http://localhost:3000/auth/callback"
+            : _oauthSettings.FrontendCallbackUrl.Trim();
+    }
+
+    private string? NormalizeFrontendCallbackUrl(string? frontendCallbackUrl)
+    {
+        if (string.IsNullOrWhiteSpace(frontendCallbackUrl) ||
+            !Uri.TryCreate(frontendCallbackUrl.Trim(), UriKind.Absolute, out var callbackUri) ||
+            callbackUri.Scheme is not ("http" or "https") ||
+            !callbackUri.AbsolutePath.Equals("/auth/callback", StringComparison.OrdinalIgnoreCase) ||
+            !IsAllowedFrontendHost(callbackUri.Host))
+        {
             return null;
         }
+
+        return callbackUri.GetLeftPart(UriPartial.Path);
+    }
+
+    private bool IsAllowedFrontendHost(string host)
+    {
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("::1", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("xoft.in", StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith(".xoft.in", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Uri.TryCreate(GetConfiguredFrontendCallbackUrl(), UriKind.Absolute, out var configured) &&
+               host.Equals(configured.Host, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildFragment(Dictionary<string, string?> values)
@@ -537,6 +579,8 @@ public sealed class AuthService : IAuthService
     }
 
     private sealed record OAuthTokenResponse([property: JsonPropertyName("access_token")] string? AccessToken);
+
+    private sealed record OAuthState(string? ReturnUrl, string? FrontendCallbackUrl);
 
     private sealed record ExternalOAuthProfile(
         [property: JsonPropertyName("id")] string? Id,

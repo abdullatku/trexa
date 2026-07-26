@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
+import { apiUrl } from '../../config/api';
 
 const getDashboardPath = (role: string) => {
   switch (role) {
@@ -19,8 +20,33 @@ export function OAuthCallbackPage() {
   const { completeExternalSignIn } = useAuth();
 
   useEffect(() => {
+    const getOAuthParams = () => {
+      const queryParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash.replace(/^#/, '');
+      const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash;
+      const hashParams = new URLSearchParams(hashQuery);
+
+      return { queryParams, hashParams, params: hashParams.toString() ? hashParams : queryParams };
+    };
+
     const complete = async () => {
-      const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const { queryParams, hashParams, params } = getOAuthParams();
+      const token = params.get('accessToken') || params.get('access_token') || params.get('token');
+
+      const directCode = queryParams.get('code') || hashParams.get('code');
+      if (directCode && !token) {
+        const callbackParams = new URLSearchParams();
+        callbackParams.set('code', directCode);
+
+        const state = queryParams.get('state') || hashParams.get('state');
+        const providerError = queryParams.get('error') || hashParams.get('error');
+        if (state) callbackParams.set('state', state);
+        if (providerError) callbackParams.set('error', providerError);
+
+        window.location.replace(apiUrl(`/auth/external/google/callback?${callbackParams.toString()}`));
+        return;
+      }
+
       const error = params.get('error');
       if (error) {
         toast.error(error);
@@ -28,7 +54,6 @@ export function OAuthCallbackPage() {
         return;
       }
 
-      const token = params.get('accessToken');
       if (!token) {
         toast.error('External sign-in did not return an access token');
         navigate('/signin', { replace: true });

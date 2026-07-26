@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
-import { Calendar, Clock, FileText, Video, CheckCircle, XCircle, ChevronLeft, ChevronRight, IndianRupee } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Calendar, Clock, FileText, Video, IndianRupee } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 
 interface Interview {
@@ -79,11 +80,6 @@ export function InterviewerInterviewsList() {
   const [cancelRequestInterview, setCancelRequestInterview] = useState<Interview | null>(null);
   const [rescheduleRequestInterview, setRescheduleRequestInterview] = useState<Interview | null>(null);
   const [rescheduleReason, setRescheduleReason] = useState('');
-  
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 12; // Increased from 6 to 12
-
   useEffect(() => {
     fetchData();
   }, [accessToken]);
@@ -152,7 +148,7 @@ export function InterviewerInterviewsList() {
 
   const getStudentName = (studentId: string) => {
     const student = students.find((s) => s.id === studentId);
-    return student?.name || 'Unknown Student';
+    return student?.name || 'Unknown Candidate';
   };
 
   const formatInterviewFee = (amount?: number | null) => {
@@ -175,16 +171,24 @@ export function InterviewerInterviewsList() {
     return Number.isNaN(date.getTime()) ? 'Pending' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Calculate pagination
-  const totalPages = Math.ceil(interviews.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentInterviews = interviews.slice(startIndex, endIndex);
+  const isFinalStatus = (status: string) => ['completed', 'cancelled', 'declined'].includes(status);
+  const isExpiredInterview = (interview: Interview) => {
+    if (isFinalStatus(interview.status) || !interview.scheduledDate || interview.scheduledDate === 'pending') {
+      return false;
+    }
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scheduledAt = new Date(interview.scheduledDate);
+    return !Number.isNaN(scheduledAt.getTime()) && scheduledAt < new Date();
   };
+
+  const expiredInterviews = interviews.filter(isExpiredInterview);
+  const scheduledInterviews = interviews.filter((interview) => !isFinalStatus(interview.status) && !isExpiredInterview(interview));
+  const completedInterviews = interviews.filter((interview) => interview.status === 'completed');
+  const interviewSections = [
+    { title: 'Scheduled', value: 'scheduled', items: scheduledInterviews },
+    { title: 'Expired', value: 'expired', items: expiredInterviews },
+    { title: 'Completed', value: 'completed', items: completedInterviews },
+  ];
 
   const handleProvideFeedback = (interview: Interview) => {
     setSelectedInterview(interview);
@@ -232,64 +236,6 @@ export function InterviewerInterviewsList() {
       toast.error(error.message || 'Failed to submit feedback');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleAcceptInterview = async (interviewId: string) => {
-    setActionLoading(interviewId);
-    try {
-      const response = await fetch(
-        `/interviews/${interviewId}/accept`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      const data = await parseJsonSafe(response);
-
-      if (!response.ok) {
-        throw new Error(getApiErrorMessage(response, data, 'Failed to accept interview'));
-      }
-
-      toast.success('Interview accepted successfully!');
-      fetchData(); // Refresh the list
-    } catch (error: any) {
-      console.error('Error accepting interview:', error);
-      toast.error(error.message || 'Failed to accept interview');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleDeclineInterview = async (interviewId: string) => {
-    setActionLoading(interviewId);
-    try {
-      const response = await fetch(
-        `/interviews/${interviewId}/decline`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      const data = await parseJsonSafe(response);
-
-      if (!response.ok) {
-        throw new Error(getApiErrorMessage(response, data, 'Failed to decline interview'));
-      }
-
-      toast.success('Interview declined');
-      fetchData(); // Refresh the list
-    } catch (error: any) {
-      console.error('Error declining interview:', error);
-      toast.error(error.message || 'Failed to decline interview');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -408,15 +354,15 @@ export function InterviewerInterviewsList() {
 
       const data = await parseJsonSafe(response);
       if (!response.ok) {
-        throw new Error(getApiErrorMessage(response, data, 'Failed to request cancel'));
+        throw new Error(getApiErrorMessage(response, data, 'Failed to cancel interview'));
       }
 
-      toast.success(data.message || 'Cancel request submitted successfully');
+      toast.success(data.message || 'Interview cancelled successfully');
       setCancelRequestInterview(null);
       fetchData();
     } catch (error: any) {
-      console.error('Error requesting cancel:', error);
-      toast.error(error.message || 'Failed to request cancel');
+      console.error('Error cancelling interview:', error);
+      toast.error(error.message || 'Failed to cancel interview');
     } finally {
       setActionLoading(null);
     }
@@ -488,10 +434,26 @@ export function InterviewerInterviewsList() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {/* Grid layout - 2 cards per row with compact design */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-            {currentInterviews.map(interview => (
+        <Tabs defaultValue="scheduled" className="space-y-4">
+          <TabsList className="grid w-full max-w-xl grid-cols-3">
+            {interviewSections.map((section) => (
+              <TabsTrigger key={section.value} value={section.value}>
+                {section.title} ({section.items.length})
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {interviewSections.map((section) => (
+            <TabsContent key={section.value} value={section.value} className="space-y-3 mt-0">
+              {section.items.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    No {section.title.toLowerCase()} interviews
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            {section.items.map(interview => (
               <Card key={interview.id} className="hover:shadow-md transition-shadow h-full flex flex-col">
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start gap-2">
@@ -507,7 +469,7 @@ export function InterviewerInterviewsList() {
                 <CardContent className="space-y-3 pt-0 flex-1 flex flex-col">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
-                      <div className="text-gray-500">Student</div>
+                      <div className="text-gray-500">Candidate Name</div>
                       <div className="font-medium truncate">{getStudentName(interview.studentId)}</div>
                     </div>
                     <div className="rounded border bg-gray-50 px-2 py-1.5 min-w-0">
@@ -547,31 +509,6 @@ export function InterviewerInterviewsList() {
                       <Badge className="text-xs bg-green-100 text-green-800">Payment Released</Badge>
                     )}
                   </div>
-
-                  {/* Action Required - New Assignment */}
-                  {!interview.acceptedByInterviewer && interview.status !== 'completed' && interview.status !== 'declined' && (
-                    <div className="flex gap-1.5">
-                      <Button
-                        onClick={() => handleAcceptInterview(interview.id)}
-                        disabled={actionLoading === interview.id}
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 h-6 text-xs px-3"
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Accept
-                      </Button>
-                      <Button
-                        onClick={() => handleDeclineInterview(interview.id)}
-                        disabled={actionLoading === interview.id}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-300 text-red-600 hover:bg-red-50 h-6 text-xs px-3"
-                      >
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Decline
-                      </Button>
-                    </div>
-                  )}
 
                   {/* All Action Buttons in One Row */}
                   <div className="flex flex-wrap gap-1.5 mt-auto pt-2 border-t">
@@ -615,7 +552,7 @@ export function InterviewerInterviewsList() {
                     )}
 
                     {/* Feedback Button */}
-                    {interview.acceptedByInterviewer && interview.status !== 'completed' && (
+                    {interview.acceptedByInterviewer && interview.status !== 'completed' && interview.status !== 'cancelled' && (
                       <Button 
                         onClick={() => handleProvideFeedback(interview)} 
                         variant="outline"
@@ -654,12 +591,12 @@ export function InterviewerInterviewsList() {
                         </Button>
                         <Button
                           onClick={() => handleRequestCancel(interview)}
-                          disabled={actionLoading === interview.id || interview.status === 'cancel_requested'}
+                          disabled={actionLoading === interview.id}
                           variant="outline"
                           size="sm"
                           className="h-6 text-xs px-3 border-red-300 text-red-600 hover:bg-red-50"
                         >
-                          {actionLoading === interview.id ? 'Submitting...' : 'Request Cancel'}
+                          {actionLoading === interview.id ? 'Cancelling...' : 'Cancel Interview'}
                         </Button>
                       </>
                     )}
@@ -682,71 +619,23 @@ export function InterviewerInterviewsList() {
                     </div>
                   )}
 
-                  {interview.status === 'cancel_requested' && (
-                    <div className="p-2 bg-red-50 rounded border border-red-200">
-                      <p className="text-xs text-red-800">
-                        <strong>Cancel Requested</strong> - Waiting for admin approval
-                      </p>
-                    </div>
-                  )}
-
                   {/* Notes - Collapsible/Truncated */}
                   {interview.notes && (
                     <details className="text-xs">
                       <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
-                        View student notes
+                        View candidate notes
                       </summary>
                       <p className="mt-1 p-2 bg-gray-50 rounded text-gray-700">{interview.notes}</p>
                     </details>
                   )}
                 </CardContent>
               </Card>
-            ))}</div>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <Button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                variant="outline"
-                size="sm"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    variant={currentPage === page ? 'default' : 'outline'}
-                    size="sm"
-                    className="min-w-[36px] h-8"
-                  >
-                    {page}
-                  </Button>
-                ))}
-              </div>
-
-              <Button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                variant="outline"
-                size="sm"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          )}
-
-          {/* Page info */}
-          <div className="text-center text-xs text-gray-500">
-            Showing {startIndex + 1}-{Math.min(endIndex, interviews.length)} of {interviews.length} interviews
-          </div>
-        </div>
+            ))}
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
 
       <Dialog
@@ -755,9 +644,9 @@ export function InterviewerInterviewsList() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Request Interview Cancel</DialogTitle>
+            <DialogTitle>Cancel Interview</DialogTitle>
             <DialogDescription>
-              This will send a cancel request to admin for approval.
+              This will cancel the interview for all participants.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3">
@@ -766,7 +655,7 @@ export function InterviewerInterviewsList() {
               onClick={confirmCancelRequest}
               disabled={!cancelRequestInterview || actionLoading === cancelRequestInterview?.id}
             >
-              {actionLoading === cancelRequestInterview?.id ? 'Submitting...' : 'Submit Request'}
+              {actionLoading === cancelRequestInterview?.id ? 'Cancelling...' : 'Cancel Interview'}
             </Button>
             <Button variant="outline" onClick={() => setCancelRequestInterview(null)}>
               Close

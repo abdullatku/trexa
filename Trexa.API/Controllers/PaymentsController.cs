@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Trexa.Api.Constants;
 using Trexa.Api.Extensions;
 using Trexa.Api.Models.Documents;
+using Trexa.Api.Models.Identity;
 using Trexa.Api.Repositories.Interfaces;
 using Trexa.Api.Settings;
 
@@ -76,8 +77,20 @@ public sealed class PaymentsController : ControllerBase
             return Forbid();
         }
 
-        var users = await _userRepository.GetAllAsync(cancellationToken);
-        var userLookup = users.ToDictionary(user => user.Id.ToString(), StringComparer.OrdinalIgnoreCase);
+        var paymentUserIds = payments
+            .Select(payment => payment.UserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var userLookup = new Dictionary<string, ApplicationUser>(StringComparer.OrdinalIgnoreCase);
+        if (role == "admin" || role == "interviewer")
+        {
+            var users = await _userRepository.GetAllAsync(cancellationToken);
+            userLookup = users
+                .Where(user => paymentUserIds.Contains(user.Id.ToString(), StringComparer.OrdinalIgnoreCase))
+                .ToDictionary(user => user.Id.ToString(), StringComparer.OrdinalIgnoreCase);
+        }
 
         var plans = await _plansRepository.GetPlansAsync(cancellationToken);
         var planLookup = plans.ToDictionary(plan => plan.Id, StringComparer.OrdinalIgnoreCase);
@@ -143,7 +156,21 @@ public sealed class PaymentsController : ControllerBase
         var plan = await _plansRepository.GetPlanByIdAsync(request.PlanId, cancellationToken);
         if (plan is null) return NotFound(new { error = "Plan not found" });
 
-        var amountPaise = request.Amount > 0 ? request.Amount : (plan.Price * 100);
+        var plans = await _plansRepository.GetPlansAsync(cancellationToken);
+        var activeSubscription = await _subscriptionRepository.GetActiveByUserIdAsync(userId, cancellationToken);
+        var activePlan = activeSubscription is null
+            ? null
+            : plans.FirstOrDefault(x => x.Id.Equals(activeSubscription.PlanId, StringComparison.OrdinalIgnoreCase));
+
+        if (IsDowngrade(activeSubscription, activePlan, plan))
+        {
+            return BadRequest(new
+            {
+                error = $"You are already on a better plan valid until {activeSubscription!.EndDate:yyyy-MM-dd}."
+            });
+        }
+
+        var amountPaise = CalculatePayableAmountPaise(activeSubscription, activePlan, plan);
         if (amountPaise <= 0)
         {
             return BadRequest(new { error = "Invalid amount" });
@@ -203,8 +230,8 @@ public sealed class PaymentsController : ControllerBase
 
         if (payment.Status == "paid")
         {
-            var existing = await _subscriptionRepository.GetActiveByUserIdAsync(userId, cancellationToken);
-            return Ok(new { message = "Payment already verified", subscription = existing });
+            var paidSubscription = await _subscriptionRepository.GetActiveByUserIdAsync(userId, cancellationToken);
+            return Ok(new { message = "Payment already verified", subscription = paidSubscription });
         }
 
         if (!IsValidRazorpaySignature(request.RazorpayOrderId, request.RazorpayPaymentId, request.RazorpaySignature))
@@ -222,6 +249,7 @@ public sealed class PaymentsController : ControllerBase
         payment.GatewayStatus = "paid";
         await _store.UpsertAsync(_dynamoSettings.PaymentsTable, payment, cancellationToken);
 
+        var existing = await _subscriptionRepository.GetActiveByUserIdAsync(userId, cancellationToken);
         await _subscriptionRepository.ExpireActiveByUserIdAsync(userId, cancellationToken);
 
         var durationDays = plan.Duration switch
@@ -236,7 +264,7 @@ public sealed class PaymentsController : ControllerBase
             UserId = userId,
             PlanId = plan.Id,
             Status = "active",
-            InterviewsRemaining = plan.Interviews,
+            InterviewsRemaining = plan.Interviews + Math.Max(0, existing?.InterviewsRemaining ?? 0),
             StartDate = DateTime.UtcNow,
             EndDate = DateTime.UtcNow.AddDays(durationDays),
             CreatedAt = DateTime.UtcNow
@@ -292,6 +320,30 @@ public sealed class PaymentsController : ControllerBase
         }
 
         return new CreateOrderGatewayResult(true, order.Id, order.Status, order.Currency, null);
+    }
+
+    private static bool IsDowngrade(Subscription? activeSubscription, Plan? activePlan, Plan targetPlan)
+    {
+        if (activeSubscription is null || activePlan is null || activeSubscription.EndDate <= DateTime.UtcNow)
+        {
+            return false;
+        }
+
+        return targetPlan.Interviews < activePlan.Interviews || targetPlan.Price < activePlan.Price;
+    }
+
+    private static decimal CalculatePayableAmountPaise(Subscription? activeSubscription, Plan? activePlan, Plan targetPlan)
+    {
+        var targetAmount = targetPlan.Price * 100;
+        if (activeSubscription is null || activePlan is null || activeSubscription.EndDate <= DateTime.UtcNow)
+        {
+            return targetAmount;
+        }
+
+        var currentPerInterview = activePlan.Interviews <= 0 ? 0 : activePlan.Price / activePlan.Interviews;
+        var unusedCredit = Math.Max(0, activeSubscription.InterviewsRemaining) * currentPerInterview;
+        var payableMajor = Math.Max(0, targetPlan.Price - unusedCredit);
+        return Math.Round(payableMajor * 100, 0);
     }
 
     private bool IsValidRazorpaySignature(string orderId, string paymentId, string signature)

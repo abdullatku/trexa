@@ -332,7 +332,7 @@ export function AdminUsers() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl mb-2">User Management</h2>
-          <p className="text-gray-600">Manage students, interviewers, and admins</p>
+          <p className="text-gray-600">Manage candidates, interviewers, and admins</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -375,7 +375,7 @@ export function AdminUsers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="student">Candidate</SelectItem>
                     <SelectItem value="interviewer">Interviewer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
@@ -483,7 +483,7 @@ export function AdminUsers() {
             <>
               <Tabs value={activeRole} onValueChange={(value) => setActiveRole(value as 'student' | 'interviewer' | 'admin')} className="mb-4">
                 <TabsList className="w-full grid grid-cols-3 h-auto">
-                  <TabsTrigger value="student">Students ({roleCounts.student})</TabsTrigger>
+                  <TabsTrigger value="student">Candidates ({roleCounts.student})</TabsTrigger>
                   <TabsTrigger value="interviewer">Interviewers ({roleCounts.interviewer})</TabsTrigger>
                   <TabsTrigger value="admin">Admins ({roleCounts.admin})</TabsTrigger>
                 </TabsList>

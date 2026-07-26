@@ -584,7 +584,7 @@ export function AdminPlans() {
               <DialogHeader>
                 <DialogTitle>Create New Plan</DialogTitle>
                 <DialogDescription>
-                  Add a new subscription plan for students
+                  Add a new subscription plan for candidates
                 </DialogDescription>
               </DialogHeader>
               
@@ -790,7 +790,7 @@ export function AdminPlans() {
                         Set as Default Plan
                       </Label>
                       <p className="text-xs text-gray-600 mt-1">
-                        New students will be automatically assigned this plan
+                        New candidates will be automatically assigned this plan
                       </p>
                     </div>
                     {formData.isDefault && <CheckCircle2 className="h-5 w-5 text-yellow-600" />}
@@ -818,7 +818,7 @@ export function AdminPlans() {
               <DialogHeader>
                 <DialogTitle>Edit Plan</DialogTitle>
                 <DialogDescription>
-                  Update an existing subscription plan for students
+                  Update an existing subscription plan for candidates
                 </DialogDescription>
               </DialogHeader>
               
@@ -1024,7 +1024,7 @@ export function AdminPlans() {
                         Set as Default Plan
                       </Label>
                       <p className="text-xs text-gray-600 mt-1">
-                        New students will be automatically assigned this plan
+                        New candidates will be automatically assigned this plan
                       </p>
                     </div>
                     {editingPlan?.isDefault && <CheckCircle2 className="h-5 w-5 text-yellow-600" />}

@@ -6,7 +6,7 @@ export function AdminPayments() {
     <div className="space-y-10">
       <PaymentHistory
         title="Plan Payments"
-        description="Student payment records across plans"
+        description="Candidate payment records across plans"
         showCustomer
       />
       <InterviewerFeeHistory

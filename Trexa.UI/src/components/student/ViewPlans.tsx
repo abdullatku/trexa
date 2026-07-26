@@ -42,8 +42,7 @@ export function ViewPlans() {
 
   useEffect(() => {
     if (accessToken) {
-      fetchPlans();
-      fetchSubscription();
+      fetchInitialData();
     }
     
     // Load Razorpay script
@@ -60,33 +59,25 @@ export function ViewPlans() {
     };
   }, [accessToken]);
 
+  const fetchInitialData = async () => {
+    setLoading(true);
+    await Promise.all([fetchPlans(), fetchSubscription()]);
+    setLoading(false);
+  };
+
   const fetchPlans = async () => {
     try {
-      const url = `/plans`;
-      console.log('=== FETCHING PLANS ===');
-      console.log('URL:', url);
-      console.log('Authorization token:', accessToken ? 'Present' : 'Missing');
-      
-      const response = await fetch(url, {
+      const response = await fetch(`/plans`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
       
       const data = await response.json();
-      console.log('Full response data:', data);
-      console.log('Plans array:', data.plans);
-      console.log('Plans count:', data.plans?.length || 0);
-      console.log('Plans details:', JSON.stringify(data.plans, null, 2));
-      
       setPlans(data.plans || []);
     } catch (error) {
       console.error('Error fetching plans:', error);
       toast.error('Failed to load plans');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -112,6 +103,12 @@ export function ViewPlans() {
     const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
 
     if (isCurrentPlan) {
+      return;
+    }
+
+    const activePlan = getActivePlan();
+    if (isDowngrade(plan, activePlan)) {
+      toast.info(`You are already on a better plan valid until ${formatDate(subscription?.endDate)}.`);
       return;
     }
 
@@ -151,14 +148,37 @@ export function ViewPlans() {
     }
 
     // Paid plans - use Razorpay
-    if (!window.Razorpay) {
-      toast.error('Payment gateway is loading. Please try again in a moment.');
-      return;
-    }
-
     setSubscribing(plan.id);
 
     try {
+      const payablePrice = getPayablePrice(plan, activePlan);
+      if (payablePrice <= 0) {
+        const response = await fetch(`/subscription/activate-with-credit`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            planId: plan.id,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to upgrade subscription');
+        }
+
+        toast.success(data.message || 'Subscription upgraded successfully!');
+        fetchSubscription();
+        return;
+      }
+
+      if (!window.Razorpay) {
+        toast.error('Payment gateway is loading. Please try again in a moment.');
+        return;
+      }
+
       // Fetch Razorpay Key ID from backend
       const configResponse = await fetch(
         `/razorpay-config`,
@@ -176,7 +196,7 @@ export function ViewPlans() {
       }
 
       // Create Razorpay order on backend
-      const amountInPaise = plan.price * 100; // Convert to paise (1 INR = 100 paise)
+      const amountInPaise = payablePrice * 100;
       
       const orderResponse = await fetch(
         `/payments/create-order`,
@@ -269,6 +289,32 @@ export function ViewPlans() {
 
   const activePlan = getActivePlan();
 
+  const isDowngrade = (plan: Plan, currentPlan: Plan | null) => {
+    return Boolean(
+      subscription?.status === 'active' &&
+      subscription.endDate &&
+      new Date(subscription.endDate) > new Date() &&
+      currentPlan &&
+      (plan.interviews < currentPlan.interviews || plan.price < currentPlan.price)
+    );
+  };
+
+  const getPayablePrice = (plan: Plan, currentPlan: Plan | null) => {
+    if (!subscription || subscription.status !== 'active' || !currentPlan || new Date(subscription.endDate) <= new Date()) {
+      return plan.price;
+    }
+
+    if (isDowngrade(plan, currentPlan)) {
+      return plan.price;
+    }
+
+    const currentPerInterview = currentPlan.interviews > 0 ? currentPlan.price / currentPlan.interviews : 0;
+    const unusedCredit = Math.max(0, subscription.interviewsRemaining) * currentPerInterview;
+    return Math.max(0, Math.round(plan.price - unusedCredit));
+  };
+
+  const formatDate = (value?: string) => value ? new Date(value).toLocaleDateString() : 'the current plan end date';
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -310,6 +356,8 @@ export function ViewPlans() {
         <div className="grid md:grid-cols-3 gap-6">
           {plans.map((plan) => {
             const isCurrentPlan = subscription?.status === 'active' && subscription.planId === plan.id;
+            const downgraded = isDowngrade(plan, activePlan);
+            const payablePrice = getPayablePrice(plan, activePlan);
             
             return (
               <Card 
@@ -333,6 +381,16 @@ export function ViewPlans() {
                       </>
                     )}
                   </CardDescription>
+                  {subscription?.status === 'active' && activePlan && !isCurrentPlan && !downgraded && payablePrice < plan.price && (
+                    <p className="text-sm text-green-700">
+                      Upgrade today: ₹{payablePrice} after remaining interview credit
+                    </p>
+                  )}
+                  {downgraded && (
+                    <p className="text-sm text-amber-700">
+                      You are already on a better plan valid until {formatDate(subscription?.endDate)}.
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col">
                   <div className="space-y-2 flex-1">
@@ -350,10 +408,10 @@ export function ViewPlans() {
                   <Button 
                     className="w-full mt-4" 
                     onClick={() => handleSubscribe(plan)}
-                    disabled={isCurrentPlan || subscribing === plan.id}
+                    disabled={isCurrentPlan || downgraded || subscribing === plan.id}
                   >
                     <CreditCard className="h-4 w-4 mr-2" />
-                    {isCurrentPlan ? 'Current Plan' : subscribing === plan.id ? 'Processing...' : 'Subscribe'}
+                    {isCurrentPlan ? 'Current Plan' : downgraded ? 'Better Plan Active' : subscribing === plan.id ? 'Processing...' : 'Subscribe'}
                   </Button>
                 </CardContent>
               </Card>

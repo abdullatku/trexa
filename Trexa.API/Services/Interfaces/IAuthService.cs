@@ -13,7 +13,7 @@ public interface IAuthService
     Task<AuthServiceResult<string>> ResendVerificationEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<AuthServiceResult<string>> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<AuthServiceResult<string>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
-    AuthServiceResult<string> BuildExternalAuthorizationUrl(string provider, string redirectUri, string? returnUrl);
+    AuthServiceResult<string> BuildExternalAuthorizationUrl(string provider, string redirectUri, string? returnUrl, string? frontendCallbackUrl);
     Task<AuthServiceResult<AuthResponse>> ExternalSignInAsync(string provider, string code, string redirectUri, CancellationToken cancellationToken = default);
     string BuildFrontendOAuthCallbackUrl(AuthResponse response, string? state, string? error = null);
     string BuildFrontendOAuthErrorUrl(string? state, string error);

@@ -80,7 +80,7 @@ public sealed class InterviewsController : ControllerBase
             .Select(u => new
             {
                 id = u.Id.ToString(),
-                name = string.IsNullOrWhiteSpace(u.Name) ? (u.Email ?? "Student") : u.Name,
+                name = string.IsNullOrWhiteSpace(u.Name) ? (u.Email ?? "Candidate") : u.Name,
                 email = u.Email
             })
             .ToList();
@@ -132,6 +132,46 @@ public sealed class InterviewsController : ControllerBase
         await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
         await NotifyInterviewChangeAsync(interview, "Interview Requested", "A new interview request has been created.", notifyStudent: true, notifyInterviewer: false, notifyAdmins: true, cancellationToken);
         return Ok(new { message = "Interview request submitted successfully", interview });
+    }
+
+    [HttpPut("interviews/{id}")]
+    public async Task<IActionResult> UpdateInterviewRequest(string id, [FromBody] EditInterviewRequest request, CancellationToken cancellationToken)
+    {
+        var userId = User.GetUserId();
+        if (User.GetRole() != "student" || string.IsNullOrWhiteSpace(userId))
+        {
+            return Forbid();
+        }
+
+        var interview = await _store.GetByIdAsync<Interview>(_settings.InterviewsTable, id, cancellationToken);
+        if (interview is null || interview.StudentId != userId)
+        {
+            return NotFound(new { error = "Interview not found" });
+        }
+
+        if (interview.Status != "pending")
+        {
+            return BadRequest(new { error = "Only pending interview requests can be edited" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.DesignationId))
+        {
+            return BadRequest(new { error = "Designation is required" });
+        }
+
+        interview.DesignationId = request.DesignationId;
+        interview.Notes = request.Notes;
+        interview.Skill = request.Skill;
+        interview.Level = request.Level;
+        interview.InterviewLevel = request.InterviewLevel;
+        interview.CvUrl = request.CvUrl;
+        interview.Timezone = request.Timezone;
+        interview.CompanyLevel = request.CompanyLevel;
+        interview.PreferredCompany = request.PreferredCompany;
+
+        await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
+        await NotifyInterviewChangeAsync(interview, "Interview Request Updated", "An interview request has been updated.", notifyStudent: false, notifyInterviewer: false, notifyAdmins: true, cancellationToken);
+        return Ok(new { message = "Interview request updated successfully", interview });
     }
 
     [HttpGet("interviews")]
@@ -358,6 +398,7 @@ public sealed class InterviewsController : ControllerBase
         if (role == "admin")
         {
             interview.Status = "cancelled";
+            await RestoreInterviewCreditIfNeededAsync(interview, restorePendingOnly: false, cancellationToken);
             await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
             await NotifyInterviewChangeAsync(interview, "Interview Cancelled", "The interview was cancelled by admin.", notifyStudent: true, notifyInterviewer: true, notifyAdmins: true, cancellationToken);
             return Ok(new { message = "Interview cancelled successfully" });
@@ -371,8 +412,9 @@ public sealed class InterviewsController : ControllerBase
             }
 
             interview.Status = "cancelled";
+            await RestoreInterviewCreditIfNeededAsync(interview, restorePendingOnly: true, cancellationToken);
             await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
-            await NotifyInterviewChangeAsync(interview, "Interview Cancelled", "The interview was cancelled by student.", notifyStudent: false, notifyInterviewer: true, notifyAdmins: true, cancellationToken);
+            await NotifyInterviewChangeAsync(interview, "Interview Cancelled", "The interview was cancelled by candidate.", notifyStudent: false, notifyInterviewer: true, notifyAdmins: true, cancellationToken);
             return Ok(new { message = "Interview cancelled successfully" });
         }
 
@@ -383,10 +425,11 @@ public sealed class InterviewsController : ControllerBase
                 return NotFound(new { error = "Interview not found" });
             }
 
-            interview.Status = "cancel_requested";
+            interview.Status = "cancelled";
+            await RestoreInterviewCreditIfNeededAsync(interview, restorePendingOnly: false, cancellationToken);
             await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
-            await NotifyInterviewChangeAsync(interview, "Cancel Request Submitted", "The interviewer requested to cancel this interview.", notifyStudent: true, notifyInterviewer: false, notifyAdmins: true, cancellationToken);
-            return Ok(new { message = "Cancel request submitted successfully" });
+            await NotifyInterviewChangeAsync(interview, "Interview Cancelled", "The interview was cancelled by interviewer.", notifyStudent: true, notifyInterviewer: false, notifyAdmins: true, cancellationToken);
+            return Ok(new { message = "Interview cancelled successfully" });
         }
 
         return Forbid();
@@ -407,6 +450,7 @@ public sealed class InterviewsController : ControllerBase
         }
 
         interview.Status = "cancelled";
+        await RestoreInterviewCreditIfNeededAsync(interview, restorePendingOnly: false, cancellationToken);
         await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
         await NotifyInterviewChangeAsync(interview, "Interview Cancelled", "The interview was cancelled by admin.", notifyStudent: true, notifyInterviewer: true, notifyAdmins: false, cancellationToken);
 
@@ -508,6 +552,11 @@ public sealed class InterviewsController : ControllerBase
             return NotFound(new { error = "Interview not found" });
         }
 
+        if (interview.Status == "cancelled")
+        {
+            return BadRequest(new { error = "Cannot submit feedback for a cancelled interview" });
+        }
+
         interview.Feedback = feedback;
         interview.Status = "completed";
         await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
@@ -568,9 +617,9 @@ public sealed class InterviewsController : ControllerBase
 
         interview.StudentFeedback = feedback;
         await _store.UpsertAsync(_settings.InterviewsTable, interview, cancellationToken);
-        await NotifyInterviewChangeAsync(interview, "Student Feedback Submitted", "Student feedback has been submitted.", notifyStudent: false, notifyInterviewer: true, notifyAdmins: true, cancellationToken);
+        await NotifyInterviewChangeAsync(interview, "Candidate Feedback Submitted", "Candidate feedback has been submitted.", notifyStudent: false, notifyInterviewer: true, notifyAdmins: true, cancellationToken);
 
-        return Ok(new { message = "Student feedback submitted successfully" });
+        return Ok(new { message = "Candidate feedback submitted successfully" });
     }
 
     [HttpPost("interviews/{id}/meeting")]
@@ -824,6 +873,26 @@ public sealed class InterviewsController : ControllerBase
         createdAt = user.CreatedAt
     };
 
+    private async Task RestoreInterviewCreditIfNeededAsync(Interview interview, bool restorePendingOnly, CancellationToken cancellationToken)
+    {
+        if (interview.InterviewCreditRestored || string.IsNullOrWhiteSpace(interview.StudentId))
+        {
+            return;
+        }
+
+        var wasPendingRequest = interview.Status == "pending" || interview.ScheduledDate == "pending" || string.IsNullOrWhiteSpace(interview.InterviewerId);
+        if (restorePendingOnly && !wasPendingRequest)
+        {
+            return;
+        }
+
+        var restored = await _subscriptionRepository.RestoreInterviewCreditAsync(interview.StudentId, cancellationToken);
+        if (restored)
+        {
+            interview.InterviewCreditRestored = true;
+        }
+    }
+
     public sealed record CreateInterviewRequest(
         string DesignationId,
         string ScheduledDate,
@@ -836,6 +905,17 @@ public sealed class InterviewsController : ControllerBase
         string? PreferredCompany,
         string? Timezone,
         string? InterviewerId);
+
+    public sealed record EditInterviewRequest(
+        string DesignationId,
+        string? Notes,
+        string? Skill,
+        string? Level,
+        string? InterviewLevel,
+        string? CvUrl,
+        string? CompanyLevel,
+        string? PreferredCompany,
+        string? Timezone);
 
     private async Task<decimal> GetDefaultInterviewerFeeAsync(string interviewerId, CancellationToken cancellationToken)
     {

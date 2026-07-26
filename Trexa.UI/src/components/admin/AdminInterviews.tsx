@@ -16,7 +16,7 @@ import { Label } from '../ui/label';
 import { Calendar } from '../ui/calendar';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { MoreHorizontal, UserCheck, Clock, Calendar as CalendarIcon } from 'lucide-react';
+import { Download, ExternalLink, MoreHorizontal, RefreshCw, UserCheck, Clock, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { AdminPagination, getPaginationRange } from './AdminPagination';
 
@@ -35,6 +35,7 @@ interface Interview {
   videoMeetingId?: string;
   zoomJoinUrl?: string;
   zoomMeetingId?: string;
+  cvUrl?: string;
   preferredCompany?: string;
   interviewerFee?: number | null;
 }
@@ -97,6 +98,8 @@ export function AdminInterviews() {
   const [assignedPage, setAssignedPage] = useState(1);
   const [pendingSearch, setPendingSearch] = useState('');
   const [assignedSearch, setAssignedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -108,7 +111,11 @@ export function AdminInterviews() {
 
   useEffect(() => {
     setAssignedPage(1);
-  }, [assignedSearch]);
+  }, [assignedSearch, statusFilter]);
+
+  useEffect(() => {
+    setPendingPage(1);
+  }, [statusFilter]);
 
   // Fetch availability when interviewer is selected
   useEffect(() => {
@@ -174,6 +181,16 @@ export function AdminInterviews() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchData();
+      toast.success('Interviews refreshed');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const fetchInterviewerAvailability = async (interviewerId: string) => {
     setLoadingAvailability(true);
     try {
@@ -196,6 +213,7 @@ export function AdminInterviews() {
 
   const generateTimeSlots = () => {
     if (!selectedDate) return;
+    setSelectedTimeSlot('');
 
     const dayOfWeek = selectedDate.getDay();
     const dayAvailability = interviewerAvailability.filter(
@@ -208,7 +226,7 @@ export function AdminInterviews() {
       return;
     }
 
-    const slots: TimeSlot[] = [];
+    const slotsByTime = new Map<string, TimeSlot>();
 
     dayAvailability.forEach((avail) => {
       const [startHour, startMinute] = avail.startTime.split(':').map(Number);
@@ -220,7 +238,7 @@ export function AdminInterviews() {
         const dateTime = new Date(selectedDate);
         dateTime.setHours(hour, startMinute, 0, 0);
 
-        slots.push({
+        slotsByTime.set(time, {
           date: dateTime,
           time: time,
           formattedDateTime: dateTime.toISOString(),
@@ -228,7 +246,9 @@ export function AdminInterviews() {
       }
     });
 
-    setAvailableTimeSlots(slots);
+    setAvailableTimeSlots(
+      Array.from(slotsByTime.values()).sort((a, b) => a.date.getTime() - b.date.getTime())
+    );
   };
 
   const getUserName = (userId: string) => {
@@ -435,6 +455,39 @@ export function AdminInterviews() {
   const assignedInterviews = interviews.filter(
     (interview) => interview.scheduledDate !== 'pending' && interview.interviewerId
   );
+
+  const matchesStatusFilter = (interview: Interview) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'other') {
+      return !['scheduled', 'cancelled', 'completed', 'pending'].includes(interview.status);
+    }
+    return interview.status === statusFilter;
+  };
+
+  const overdueInterviews = interviews.filter((interview) => {
+    if (!['scheduled', 'accepted', 'in_progress', 'reschedule_requested'].includes(interview.status)) return false;
+    if (!interview.scheduledDate || interview.scheduledDate === 'pending') return false;
+    const scheduledAt = new Date(interview.scheduledDate);
+    return !Number.isNaN(scheduledAt.getTime()) && scheduledAt < new Date();
+  });
+
+  const openCv = (interview: Interview) => {
+    if (interview.cvUrl) {
+      window.open(interview.cvUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const downloadCv = (interview: Interview) => {
+    if (!interview.cvUrl) return;
+    const link = document.createElement('a');
+    link.href = interview.cvUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.download = `candidate-cv-${interview.id}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const matchesInterviewSearch = (interview: Interview, search: string) => {
     const normalized = search.trim().toLowerCase();
     if (!normalized) return true;
@@ -453,8 +506,12 @@ export function AdminInterviews() {
       .filter(value => value !== null && value !== undefined)
       .some(value => String(value).toLowerCase().includes(normalized));
   };
-  const filteredPendingInterviews = pendingInterviews.filter(interview => matchesInterviewSearch(interview, pendingSearch));
-  const filteredAssignedInterviews = assignedInterviews.filter(interview => matchesInterviewSearch(interview, assignedSearch));
+  const filteredPendingInterviews = pendingInterviews
+    .filter(matchesStatusFilter)
+    .filter(interview => matchesInterviewSearch(interview, pendingSearch));
+  const filteredAssignedInterviews = assignedInterviews
+    .filter(matchesStatusFilter)
+    .filter(interview => matchesInterviewSearch(interview, assignedSearch));
   const pendingRange = getPaginationRange(pendingPage, filteredPendingInterviews.length, INTERVIEWS_PAGE_SIZE);
   const assignedRange = getPaginationRange(assignedPage, filteredAssignedInterviews.length, INTERVIEWS_PAGE_SIZE);
   const paginatedPendingInterviews = filteredPendingInterviews.slice(
@@ -477,8 +534,39 @@ export function AdminInterviews() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl mb-2">Interview Management</h2>
-        <p className="text-gray-600">Manage and assign interviews to interviewers</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl mb-2">Interview Management</h2>
+            <p className="text-gray-600">Manage and assign interviews to interviewers</p>
+          </div>
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {overdueInterviews.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          {overdueInterviews.length} interview{overdueInterviews.length === 1 ? '' : 's'} have expired and need rescheduling.
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Label>Status Filter</Label>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
+            <SelectItem value="cancelled">Canceled</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="other">Other statuses</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Pending Interview Requests */}
@@ -495,7 +583,7 @@ export function AdminInterviews() {
             <Input
               value={pendingSearch}
               onChange={(e) => setPendingSearch(e.target.value)}
-              placeholder="Search pending interviews by student, designation, skill, or notes"
+              placeholder="Search pending interviews by candidate name, designation, skill, or notes"
               className="mb-4 max-w-md"
             />
             {filteredPendingInterviews.length === 0 ? (
@@ -504,7 +592,7 @@ export function AdminInterviews() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
+                  <TableHead>Candidate Name</TableHead>
                   <TableHead>Designation</TableHead>
                   <TableHead>Skill</TableHead>
                   <TableHead>Level</TableHead>
@@ -530,10 +618,22 @@ export function AdminInterviews() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openAssignDialog(interview)}>
+                          <DropdownMenuItem onClick={() => openAssignDialog(interview)} disabled={isFinalInterviewStatus(interview)}>
                             <UserCheck className="mr-2 h-4 w-4" />
                             Assign
                           </DropdownMenuItem>
+                          {interview.cvUrl && (
+                            <>
+                              <DropdownMenuItem onClick={() => openCv(interview)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View CV
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => downloadCv(interview)}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download CV
+                              </DropdownMenuItem>
+                            </>
+                          )}
                           <DropdownMenuItem
                             onClick={() => handleCancelInterview(interview)}
                             disabled={updatingInterviewId === interview.id}
@@ -574,7 +674,7 @@ export function AdminInterviews() {
             <Input
               value={assignedSearch}
               onChange={(e) => setAssignedSearch(e.target.value)}
-              placeholder="Search assigned interviews by student, interviewer, status, fee, or date"
+              placeholder="Search assigned interviews by candidate name, interviewer, status, fee, or date"
               className="mb-4 max-w-md"
             />
             {filteredAssignedInterviews.length === 0 ? (
@@ -583,12 +683,13 @@ export function AdminInterviews() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
+                  <TableHead>Candidate Name</TableHead>
                   <TableHead>Designation</TableHead>
                   <TableHead>Interviewer</TableHead>
                   <TableHead>Scheduled Date</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Notes</TableHead>
                   <TableHead className="w-16 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -614,6 +715,7 @@ export function AdminInterviews() {
                         {interview.status}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-sm max-w-xs truncate">{interview.notes || '-'}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -635,6 +737,18 @@ export function AdminInterviews() {
                           >
                             Reschedule
                           </DropdownMenuItem>
+                          {interview.cvUrl && (
+                            <>
+                              <DropdownMenuItem onClick={() => openCv(interview)}>
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                View CV
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => downloadCv(interview)}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download CV
+                              </DropdownMenuItem>
+                            </>
+                          )}
                           <DropdownMenuItem
                             onClick={() => handleCancelInterview(interview)}
                             disabled={isFinalInterviewStatus(interview) || updatingInterviewId === interview.id}
@@ -686,7 +800,7 @@ export function AdminInterviews() {
                 <h3 className="font-medium">Interview Request Details</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-gray-600">Student:</span>{' '}
+                    <span className="text-gray-600">Candidate Name:</span>{' '}
                     <span className="font-medium">{getUserName(selectedInterview.studentId)}</span>
                   </div>
                   <div>
@@ -826,18 +940,24 @@ export function AdminInterviews() {
                           {availableTimeSlots.length === 0 ? (
                             <p className="text-sm text-gray-500 mt-2">No available time slots for this date</p>
                           ) : (
-                            <div className="grid grid-cols-3 gap-2 mt-2">
-                              {availableTimeSlots.map((slot, idx) => (
+                            <div className="grid grid-cols-3 gap-2 mt-2" role="radiogroup" aria-label="Available time slots">
+                              {availableTimeSlots.map((slot) => {
+                                const isSelected = selectedTimeSlot === slot.formattedDateTime;
+                                return (
                                 <Button
-                                  key={idx}
+                                  key={slot.formattedDateTime}
                                   type="button"
-                                  variant={selectedTimeSlot === slot.formattedDateTime ? 'default' : 'outline'}
+                                  variant="outline"
                                   size="sm"
+                                  role="radio"
+                                  aria-checked={isSelected}
                                   onClick={() => setSelectedTimeSlot(slot.formattedDateTime)}
+                                  className={isSelected ? 'border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white' : ''}
                                 >
                                   {slot.time}
                                 </Button>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>

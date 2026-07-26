@@ -69,12 +69,14 @@ public sealed class FilesController : ControllerBase
             await _s3Client.PutObjectAsync(request, cancellationToken);
         }
 
+        var forwardedProto = Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var forwardedHost = Request.Headers["X-Forwarded-Host"].FirstOrDefault();
         var cvUrl = Url.ActionLink(
             action: nameof(GetUploadedFile),
             controller: "Files",
             values: new { key },
-            protocol: Request.Scheme,
-            host: Request.Host.ToString());
+            protocol: string.IsNullOrWhiteSpace(forwardedProto) ? Request.Scheme : forwardedProto.Split(',')[0].Trim(),
+            host: string.IsNullOrWhiteSpace(forwardedHost) ? Request.Host.ToString() : forwardedHost.Split(',')[0].Trim());
 
         return Ok(new { cvUrl });
     }

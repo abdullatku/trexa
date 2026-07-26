@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { apiBaseUrl } from "../../config/api";
 import { toast } from 'sonner@2.0.3';
-import { Upload, FileText, X, Calendar, Building2 } from 'lucide-react';
+import { Upload, FileText, X, Calendar, Building2, Pencil } from 'lucide-react';
 
 interface Designation {
   id: string;
@@ -45,14 +45,30 @@ const COMPANY_LEVELS = [
 interface RequestInterviewProps {
   onSuccess?: () => void;
   triggerClassName?: string;
+  triggerLabel?: string;
+  triggerVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive';
+  triggerSize?: 'default' | 'sm' | 'lg' | 'icon';
+  editInterview?: {
+    id: string;
+    designationId: string;
+    notes?: string;
+    skill?: string;
+    level?: string;
+    interviewLevel?: string;
+    cvUrl?: string;
+    companyLevel?: string;
+    preferredCompany?: string;
+    timezone?: string;
+  };
 }
 
-export function RequestInterview({ onSuccess, triggerClassName }: RequestInterviewProps) {
+export function RequestInterview({ onSuccess, triggerClassName, triggerLabel = 'Request Interview', triggerVariant = 'default', triggerSize = 'default', editInterview }: RequestInterviewProps) {
   const { accessToken } = useAuth();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [selectedDesignation, setSelectedDesignation] = useState('');
   const [notes, setNotes] = useState('');
-  const [skill, setSkill] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [customSkill, setCustomSkill] = useState('');
   const [level, setLevel] = useState('');
   const [interviewLevel, setInterviewLevel] = useState('');
   const [companyLevel, setCompanyLevel] = useState('');
@@ -78,6 +94,21 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
       fetchSubscription();
     }
   }, [accessToken]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editInterview) return;
+
+    setSelectedDesignation(editInterview.designationId || '');
+    setNotes(editInterview.notes || '');
+    setSelectedSkills((editInterview.skill || '').split(',').map((skill) => skill.trim()).filter(Boolean));
+    setCustomSkill('');
+    setLevel(editInterview.level || '');
+    setInterviewLevel(editInterview.interviewLevel || '');
+    setCompanyLevel(editInterview.companyLevel || '');
+    setPreferredCompany(editInterview.preferredCompany || '');
+    setCvUrl(editInterview.cvUrl || '');
+    setCvFile(null);
+  }, [dialogOpen, editInterview]);
 
   const fetchDesignations = async () => {
     if (!accessToken) return;
@@ -165,8 +196,8 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
       return;
     }
 
-    if (!skill) {
-      toast.error('Please select a skill');
+    if (selectedSkills.length === 0) {
+      toast.error('Please select at least one skill');
       return;
     }
 
@@ -190,18 +221,18 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
       }
 
       const response = await fetch(
-        `/interviews`,
+        editInterview ? `/interviews/${editInterview.id}` : `/interviews`,
         {
-          method: 'POST',
+          method: editInterview ? 'PUT' : 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
             designationId: selectedDesignation,
-            scheduledDate: 'pending', // Admin will set the date
+            ...(editInterview ? {} : { scheduledDate: 'pending' }),
             notes,
-            skill,
+            skill: selectedSkills.join(', '),
             level,
             interviewLevel,
             cvUrl: uploadedCvUrl,
@@ -217,12 +248,13 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
         throw new Error(data.error || 'Failed to request interview');
       }
 
-      toast.success('Interview request submitted successfully! Admin will assign an interviewer and schedule it.');
+      toast.success(editInterview ? 'Interview request updated successfully' : 'Interview request submitted successfully! Admin will assign an interviewer and schedule it.');
       
       // Reset form
       setSelectedDesignation('');
       setNotes('');
-      setSkill('');
+      setSelectedSkills([]);
+      setCustomSkill('');
       setLevel('');
       setInterviewLevel('');
       setCompanyLevel('');
@@ -309,16 +341,16 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className={`bg-indigo-600 hover:bg-indigo-700 ${triggerClassName || ''}`}>
-          <Calendar className="h-5 w-5 mr-2" />
-          Request Interview
+        <Button size={triggerSize} variant={triggerVariant} className={`${triggerVariant === 'default' ? 'bg-indigo-600 hover:bg-indigo-700' : ''} ${triggerClassName || ''}`}>
+          {editInterview ? <Pencil className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Request Mock Interview</DialogTitle>
+          <DialogTitle>{editInterview ? 'Edit Interview Request' : 'Request Mock Interview'}</DialogTitle>
           <DialogDescription>
-            Submit your interview request. Admin will assign an interviewer and schedule it based on availability.
+            {editInterview ? 'Update the request details before an admin assigns and schedules it.' : 'Submit your interview request. Admin will assign an interviewer and schedule it based on availability.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -389,10 +421,14 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
           </div>
 
           <div>
-            <Label htmlFor="skill">Primary Skill *</Label>
-            <Select value={skill} onValueChange={setSkill}>
+            <Label htmlFor="skill">Primary Skills *</Label>
+            <Select value="" onValueChange={(value) => {
+              if (!selectedSkills.includes(value)) {
+                setSelectedSkills([...selectedSkills, value]);
+              }
+            }}>
               <SelectTrigger>
-                <SelectValue placeholder="Select skill to focus on" />
+                <SelectValue placeholder="Select skills to focus on" />
               </SelectTrigger>
               <SelectContent>
                 {SKILLS.map((s) => (
@@ -400,6 +436,42 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
                 ))}
               </SelectContent>
             </Select>
+            {selectedSkills.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedSkills.map((selectedSkill) => (
+                  <Button
+                    key={selectedSkill}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedSkills(selectedSkills.filter((item) => item !== selectedSkill))}
+                  >
+                    {selectedSkill}
+                    <X className="ml-2 h-3 w-3" />
+                  </Button>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={customSkill}
+                onChange={(e) => setCustomSkill(e.target.value)}
+                placeholder="Add secondary skill"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const normalized = customSkill.trim();
+                  if (normalized && !selectedSkills.includes(normalized)) {
+                    setSelectedSkills([...selectedSkills, normalized]);
+                    setCustomSkill('');
+                  }
+                }}
+              >
+                Add
+              </Button>
+            </div>
           </div>
 
           <div>
@@ -433,7 +505,7 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
           <div>
             <Label htmlFor="companyLevel">
               <Building2 className="h-4 w-4 inline mr-1" />
-              Company Level (optional)
+              Company Tier (optional)
             </Label>
             <Select value={companyLevel} onValueChange={setCompanyLevel}>
               <SelectTrigger>
@@ -518,7 +590,7 @@ export function RequestInterview({ onSuccess, triggerClassName }: RequestIntervi
               Cancel
             </Button>
             <Button type="submit" disabled={loading || uploadingCv}>
-              {loading ? 'Submitting...' : uploadingCv ? 'Uploading CV...' : 'Submit Request'}
+              {loading ? 'Submitting...' : uploadingCv ? 'Uploading CV...' : editInterview ? 'Save Changes' : 'Submit Request'}
             </Button>
           </div>
         </form>

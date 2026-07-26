@@ -227,7 +227,7 @@ export function InterviewerFeeHistory({ title, description, showInterviewer = fa
               <TableHeader>
                 <TableRow>
                   {showInterviewer && <TableHead>Interviewer</TableHead>}
-                  <TableHead>Student</TableHead>
+                  <TableHead>Candidate Name</TableHead>
                   <TableHead>Interview</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
@@ -246,7 +246,7 @@ export function InterviewerFeeHistory({ title, description, showInterviewer = fa
                       </TableCell>
                     )}
                     <TableCell>
-                      <div>{payment.studentName || 'Unknown Student'}</div>
+                      <div>{payment.studentName || 'Unknown Candidate'}</div>
                       <div className="text-xs text-gray-500">{payment.studentEmail || '-'}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{payment.interviewId}</TableCell>

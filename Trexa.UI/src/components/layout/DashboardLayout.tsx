@@ -10,16 +10,18 @@ interface MenuItem {
   icon: LucideIcon;
   path: string;
   exact?: boolean;
+  highlight?: boolean;
   onClick: () => void;
 }
 
 interface DashboardLayoutProps {
   title: string;
   menuItems: MenuItem[];
+  notification?: ReactNode;
   children: ReactNode;
 }
 
-export function DashboardLayout({ title, menuItems, children }: DashboardLayoutProps) {
+export function DashboardLayout({ title, menuItems, notification, children }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -117,13 +119,16 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
                   <button
                     key={index}
                     onClick={() => handleMenuItemClick(item.onClick)}
-                    className={`sidebar-nav-item ${isActive ? 'is-active' : ''}`}
+                    className={`sidebar-nav-item ${isActive ? 'is-active' : ''} ${item.highlight && !isActive ? 'ring-2 ring-amber-300 bg-amber-50' : ''}`}
                     aria-current={isActive ? 'page' : undefined}
                   >
                     <span className="sidebar-nav-icon">
                       <item.icon className="h-5 w-5" />
                     </span>
                     <span>{item.label}</span>
+                    {item.highlight && !isActive && (
+                      <span className="ml-auto h-2 w-2 rounded-full bg-amber-500" />
+                    )}
                   </button>
                 );
               })}
@@ -150,13 +155,16 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
                       <button
                         key={index}
                         onClick={item.onClick}
-                        className={`sidebar-nav-item ${isActive ? 'is-active' : ''}`}
+                        className={`sidebar-nav-item ${isActive ? 'is-active' : ''} ${item.highlight && !isActive ? 'ring-2 ring-amber-300 bg-amber-50' : ''}`}
                         aria-current={isActive ? 'page' : undefined}
                       >
                         <span className="sidebar-nav-icon">
                           <item.icon className="h-5 w-5" />
                         </span>
                         <span>{item.label}</span>
+                        {item.highlight && !isActive && (
+                          <span className="ml-auto h-2 w-2 rounded-full bg-amber-500" />
+                        )}
                       </button>
                     );
                   })}
@@ -166,6 +174,11 @@ export function DashboardLayout({ title, menuItems, children }: DashboardLayoutP
 
             {/* Main Content */}
             <main className="dashboard-main flex-1 overflow-y-auto min-w-0">
+              {notification && (
+                <div className="mb-4">
+                  {notification}
+                </div>
+              )}
               {children}
             </main>
           </div>

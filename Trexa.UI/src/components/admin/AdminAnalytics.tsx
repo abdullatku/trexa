@@ -120,7 +120,7 @@ export function AdminAnalytics() {
           <CardContent>
             <div className="text-2xl">{overview.totalUsers}</div>
             <p className="text-xs text-muted-foreground">
-              {overview.studentCount} students, {overview.interviewerCount} interviewers
+              {overview.studentCount} candidates, {overview.interviewerCount} interviewers
             </p>
           </CardContent>
         </Card>

@@ -8,4 +8,5 @@ public interface ISubscriptionRepository
     Task ExpireActiveByUserIdAsync(string userId, CancellationToken cancellationToken = default);
     Task<Subscription> CreateAsync(Subscription subscription, CancellationToken cancellationToken = default);
     Task<bool> ConsumeInterviewCreditAsync(string userId, CancellationToken cancellationToken = default);
+    Task<bool> RestoreInterviewCreditAsync(string userId, CancellationToken cancellationToken = default);
 }

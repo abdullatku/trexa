@@ -39,5 +39,6 @@ public sealed class Interview
     public decimal? InterviewerFee { get; set; }
     public bool InterviewerPaymentReleased { get; set; }
     public DateTime? InterviewerPaymentReleasedAt { get; set; }
+    public bool InterviewCreditRestored { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

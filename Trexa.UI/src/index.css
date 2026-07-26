@@ -2946,6 +2946,19 @@ html {
 
 .dashboard-main {
   overflow-wrap: anywhere;
+  overflow-y: visible;
+}
+
+.dashboard-body {
+  overflow: visible;
+}
+
+.dashboard-container {
+  height: auto;
+}
+
+.dashboard-content {
+  min-height: calc(100vh - 8rem);
 }
 
 .dashboard-sidebar-card,
@@ -3094,6 +3107,10 @@ html {
 
 .student-interviews-actions {
   flex-shrink: 0;
+}
+
+.student-card-action {
+  flex: 0 0 auto;
 }
 
 .student-interviews-tabs {
