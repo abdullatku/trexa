@@ -23,36 +23,40 @@ public sealed class CalComMeetingService : IVideoConferenceService
     private readonly IAmazonS3 _s3Client;
     private readonly CalComSettings _settings;
     private readonly S3StorageSettings _s3Settings;
+    private readonly ICalComOAuthService _oauth;
 
     public CalComMeetingService(
         IHttpClientFactory httpClientFactory,
         IUserRepository userRepository,
         IAmazonS3 s3Client,
+        ICalComOAuthService oauth,
         IOptions<CalComSettings> settings,
         IOptions<S3StorageSettings> s3Settings)
     {
         _httpClientFactory = httpClientFactory;
         _userRepository = userRepository;
         _s3Client = s3Client;
+        _oauth = oauth;
         _settings = settings.Value;
         _s3Settings = s3Settings.Value;
     }
 
     public async Task<VideoMeetingResult> CreateMeetingAsync(Interview interview, CancellationToken cancellationToken = default)
     {
-        ValidateSettings();
-
         var start = ParseScheduledDate(interview.ScheduledDate);
         var student = await GetUserAsync(interview.StudentId, cancellationToken);
         var interviewer = await GetUserAsync(interview.InterviewerId, cancellationToken);
+        if (interviewer is null) throw new InvalidOperationException("Assign an interviewer before creating a Cal.com meeting.");
+        if (!interviewer.CalComEventTypeId.HasValue) throw new InvalidOperationException("The assigned interviewer must select their Cal.com event type first.");
+        var accessToken = await _oauth.GetAccessTokenAsync(interviewer, cancellationToken);
 
-        var requestBody = BuildBookingRequest(interview, start, student, interviewer);
+        var requestBody = BuildBookingRequest(interview, start, student, interviewer, interviewer.CalComEventTypeId.Value);
         var requestJson = JsonSerializer.Serialize(requestBody, JsonOptions);
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.ApiBaseUrl.TrimEnd('/')}/v2/bookings")
         {
             Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey.Trim());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Add("cal-api-version", _settings.ApiVersion.Trim());
 
         var client = _httpClientFactory.CreateClient();
@@ -83,8 +87,6 @@ public sealed class CalComMeetingService : IVideoConferenceService
 
     public async Task<VideoRecordingSyncResult> SyncRecordingAsync(Interview interview, CancellationToken cancellationToken = default)
     {
-        ValidateSettings();
-
         if (!string.IsNullOrWhiteSpace(interview.RecordingStorageKey))
         {
             return new VideoRecordingSyncResult(true, "already_saved", interview.RecordingStorageKey, interview.RecordingProviderId);
@@ -95,11 +97,14 @@ public sealed class CalComMeetingService : IVideoConferenceService
         {
             return new VideoRecordingSyncResult(false, "missing_booking_uid");
         }
+        var interviewer = await GetUserAsync(interview.InterviewerId, cancellationToken)
+            ?? throw new InvalidOperationException("The assigned interviewer was not found.");
+        var accessToken = await _oauth.GetAccessTokenAsync(interviewer, cancellationToken);
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"{_settings.ApiBaseUrl.TrimEnd('/')}/v2/bookings/{Uri.EscapeDataString(bookingUid)}/recordings");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.ApiKey.Trim());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Add("cal-api-version", _settings.ApiVersion.Trim());
 
         var client = _httpClientFactory.CreateClient();
@@ -136,7 +141,7 @@ public sealed class CalComMeetingService : IVideoConferenceService
         return new VideoRecordingSyncResult(true, "saved", key, providerRecordingId);
     }
 
-    private Dictionary<string, object?> BuildBookingRequest(Interview interview, DateTimeOffset start, ApplicationUser? student, ApplicationUser? interviewer)
+    private Dictionary<string, object?> BuildBookingRequest(Interview interview, DateTimeOffset start, ApplicationUser? student, ApplicationUser? interviewer, int eventTypeId)
     {
         var attendeeName = FirstNonEmpty(student?.Name, student?.Email, "Trexa Student")!;
         var attendeeEmail = student?.Email;
@@ -156,6 +161,7 @@ public sealed class CalComMeetingService : IVideoConferenceService
             },
             ["allowConflicts"] = _settings.AllowConflicts,
             ["allowBookingOutOfBounds"] = _settings.AllowBookingOutOfBounds,
+            ["eventTypeId"] = eventTypeId,
             ["metadata"] = new Dictionary<string, string>
             {
                 ["interviewId"] = interview.Id,
@@ -168,27 +174,6 @@ public sealed class CalComMeetingService : IVideoConferenceService
         if (_settings.UseDefaultDurationMinutes)
         {
             payload["lengthInMinutes"] = _settings.DefaultDurationMinutes;
-        }
-
-        if (_settings.EventTypeId.HasValue)
-        {
-            payload["eventTypeId"] = _settings.EventTypeId.Value;
-        }
-        else
-        {
-            payload["eventTypeSlug"] = _settings.EventTypeSlug.Trim();
-            if (!string.IsNullOrWhiteSpace(_settings.Username))
-            {
-                payload["username"] = _settings.Username.Trim();
-            }
-            if (!string.IsNullOrWhiteSpace(_settings.TeamSlug))
-            {
-                payload["teamSlug"] = _settings.TeamSlug.Trim();
-            }
-            if (!string.IsNullOrWhiteSpace(_settings.OrganizationSlug))
-            {
-                payload["organizationSlug"] = _settings.OrganizationSlug.Trim();
-            }
         }
 
         if (_settings.AddInterviewerAsGuest &&
@@ -228,32 +213,6 @@ public sealed class CalComMeetingService : IVideoConferenceService
         }
 
         throw new InvalidOperationException("Interview scheduled date must be a valid date-time before creating a Cal.com booking.");
-    }
-
-    private void ValidateSettings()
-    {
-        if (string.IsNullOrWhiteSpace(_settings.ApiKey))
-        {
-            throw new InvalidOperationException("Cal.com API key is required. Configure CalCom:ApiKey.");
-        }
-
-        if (string.IsNullOrWhiteSpace(_settings.ApiVersion))
-        {
-            throw new InvalidOperationException("Cal.com API version is required. Configure CalCom:ApiVersion.");
-        }
-
-        if (!_settings.EventTypeId.HasValue)
-        {
-            var hasUserEventType = !string.IsNullOrWhiteSpace(_settings.EventTypeSlug) &&
-                                   !string.IsNullOrWhiteSpace(_settings.Username);
-            var hasTeamEventType = !string.IsNullOrWhiteSpace(_settings.EventTypeSlug) &&
-                                   !string.IsNullOrWhiteSpace(_settings.TeamSlug);
-
-            if (!hasUserEventType && !hasTeamEventType)
-            {
-                throw new InvalidOperationException("Configure CalCom:EventTypeId, or CalCom:EventTypeSlug with CalCom:Username or CalCom:TeamSlug.");
-            }
-        }
     }
 
     private static string? FirstNonEmpty(params string?[] values)

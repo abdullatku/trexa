@@ -255,6 +255,18 @@ export function InterviewerInterviewsList() {
       const data = await parseJsonSafe(response);
 
       if (!response.ok) {
+        if (data.errorCode === 'CALCOM_ACCOUNT_REQUIRED' && data.authorizationUrl) {
+          toast.info('Create or connect your Cal.com account to continue');
+          window.location.assign(data.authorizationUrl);
+          return;
+        }
+
+        if (data.errorCode === 'CALCOM_EVENT_TYPE_REQUIRED') {
+          toast.info('Select your Cal.com event type to continue');
+          window.location.assign('/interviewer/profile?calcom=event-type-required');
+          return;
+        }
+
         throw new Error(getApiErrorMessage(response, data, 'Failed to create meeting'));
       }
 

@@ -6,13 +6,12 @@ import { useAuth } from '../auth/AuthContext';
 
 interface CalComConfig {
   apiBaseUrl: string;
+  appBaseUrl: string;
   apiVersion: string;
-  hasApiKey: boolean;
-  eventTypeId?: number | null;
-  eventTypeSlug: string;
-  username: string;
-  teamSlug: string;
-  organizationSlug: string;
+  oauthClientConfigured: boolean;
+  oauthRedirectUrl: string;
+  webhookUrl: string;
+  oauthScopes: string;
   timezone: string;
   defaultDurationMinutes: number;
   useDefaultDurationMinutes: boolean;
@@ -23,13 +22,12 @@ interface CalComConfig {
 
 const emptyConfig: CalComConfig = {
   apiBaseUrl: '',
+  appBaseUrl: '',
   apiVersion: '',
-  hasApiKey: false,
-  eventTypeId: null,
-  eventTypeSlug: '',
-  username: '',
-  teamSlug: '',
-  organizationSlug: '',
+  oauthClientConfigured: false,
+  oauthRedirectUrl: '',
+  webhookUrl: '',
+  oauthScopes: '',
   timezone: '',
   defaultDurationMinutes: 60,
   useDefaultDurationMinutes: false,
@@ -70,24 +68,22 @@ export function AdminCalCom() {
     return <div className="text-sm text-muted-foreground">Loading Cal.com settings...</div>;
   }
 
-  const hasEventType = Boolean(config.eventTypeId) || Boolean(config.eventTypeSlug && (config.username || config.teamSlug));
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Cal.com</h1>
         <p className="text-muted-foreground mt-2">
-          Cal.com booking values come from API environment variables.
+          OAuth configuration is shared by Trexa; each interviewer connects their own Cal.com account and event type.
         </p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <Status label="API URL" ok={Boolean(config.apiBaseUrl)} value={config.apiBaseUrl || 'Missing'} />
         <Status label="API Version" ok={config.apiVersion === '2026-02-25'} value={config.apiVersion || 'Missing'} />
-        <Status label="API Key" ok={config.hasApiKey} value={config.hasApiKey ? 'Configured' : 'Missing'} />
-        <Status label="Event Type" ok={hasEventType} value={eventTypeValue(config)} />
-        <Status label="User or Team" ok={Boolean(config.eventTypeId || config.username || config.teamSlug)} value={ownerValue(config)} />
-        <Status label="Organization" ok value={config.organizationSlug || 'Not used'} />
+        <Status label="OAuth Client" ok={config.oauthClientConfigured} value={config.oauthClientConfigured ? 'Configured' : 'Missing'} />
+        <Status label="OAuth Callback" ok={Boolean(config.oauthRedirectUrl)} value={config.oauthRedirectUrl || 'Missing'} />
+        <Status label="Webhook URL" ok={Boolean(config.webhookUrl)} value={config.webhookUrl || 'Missing'} />
+        <Status label="OAuth Scopes" ok={Boolean(config.oauthScopes)} value={config.oauthScopes || 'Missing'} />
         <Status label="Timezone" ok={Boolean(config.timezone)} value={config.timezone || 'Missing'} />
         <Status label="Duration Override" ok value={config.useDefaultDurationMinutes ? `${config.defaultDurationMinutes || 0} minutes` : 'Using Cal.com event type duration'} />
         <Status label="Interviewer Guest" ok value={config.addInterviewerAsGuest ? 'Added as booking guest' : 'Not added as guest'} />
@@ -106,17 +102,4 @@ function Status({ label, ok, value }: { label: string; ok: boolean; value: strin
       </div>
     </div>
   );
-}
-
-function eventTypeValue(config: CalComConfig) {
-  if (config.eventTypeId) return `ID ${config.eventTypeId}`;
-  if (config.eventTypeSlug) return config.eventTypeSlug;
-  return 'Missing';
-}
-
-function ownerValue(config: CalComConfig) {
-  if (config.eventTypeId) return 'Resolved by event type ID';
-  if (config.username) return `User: ${config.username}`;
-  if (config.teamSlug) return `Team: ${config.teamSlug}`;
-  return 'Missing';
 }

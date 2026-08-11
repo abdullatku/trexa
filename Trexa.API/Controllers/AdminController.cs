@@ -338,13 +338,13 @@ public sealed class AdminController : ControllerBase
         return new
         {
             apiBaseUrl = configuration.ApiBaseUrl,
+            appBaseUrl = configuration.AppBaseUrl,
             apiVersion = configuration.ApiVersion,
-            hasApiKey = !string.IsNullOrWhiteSpace(configuration.ApiKey),
-            eventTypeId = configuration.EventTypeId,
-            eventTypeSlug = configuration.EventTypeSlug,
-            username = configuration.Username,
-            teamSlug = configuration.TeamSlug,
-            organizationSlug = configuration.OrganizationSlug,
+            oauthClientConfigured = !string.IsNullOrWhiteSpace(configuration.OAuthClientId) &&
+                                    !string.IsNullOrWhiteSpace(configuration.OAuthClientSecret),
+            oauthRedirectUrl = configuration.OAuthRedirectUrl,
+            webhookUrl = configuration.WebhookUrl,
+            oauthScopes = configuration.OAuthScopes,
             timezone = configuration.Timezone,
             defaultDurationMinutes = configuration.DefaultDurationMinutes,
             useDefaultDurationMinutes = configuration.UseDefaultDurationMinutes,

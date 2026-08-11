@@ -171,6 +171,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IVideoConferenceService, CalComMeetingService>();
+builder.Services.AddScoped<ICalComOAuthService, CalComOAuthService>();
 
 var app = builder.Build();
 

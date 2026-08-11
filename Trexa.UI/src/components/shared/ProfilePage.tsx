@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge';
 import { apiBaseUrl } from "../../config/api";
 import { toast } from 'sonner@2.0.3';
 import { User, Mail, Briefcase, Linkedin, Code, Save, X, Plus } from 'lucide-react';
+import { CalComIntegration } from '../interviewer/CalComIntegration';
 
 const AVAILABLE_TECH_STACKS = [
   'React', 'Angular', 'Vue.js', 'Node.js', 'Python', 'Java',
@@ -322,6 +323,7 @@ export function ProfilePage() {
           )}
         </CardContent>
       </Card>
+      {user.role === 'interviewer' && <CalComIntegration />}
 
       <Card>
         <CardHeader>

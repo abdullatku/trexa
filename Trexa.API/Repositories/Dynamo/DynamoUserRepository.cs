@@ -263,7 +263,21 @@ public sealed class DynamoUserRepository : IUserRepository
             item["TechStacks"] = new AttributeValue { SS = user.TechStacks };
         }
 
+        AddString(item, "CalComAccessToken", user.CalComAccessToken);
+        AddString(item, "CalComRefreshToken", user.CalComRefreshToken);
+        AddString(item, "CalComScopes", user.CalComScopes);
+        AddString(item, "CalComWebhookId", user.CalComWebhookId);
+        AddString(item, "CalComWebhookSecret", user.CalComWebhookSecret);
+        if (user.CalComTokenExpiresAt.HasValue) item["CalComTokenExpiresAt"] = new(user.CalComTokenExpiresAt.Value.ToString("O"));
+        if (user.CalComConnectedAt.HasValue) item["CalComConnectedAt"] = new(user.CalComConnectedAt.Value.ToString("O"));
+        if (user.CalComEventTypeId.HasValue) item["CalComEventTypeId"] = new AttributeValue { N = user.CalComEventTypeId.Value.ToString() };
+
         return item;
+    }
+
+    private static void AddString(Dictionary<string, AttributeValue> item, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) item[key] = new(value);
     }
 
     private static ApplicationUser ToDomain(Dictionary<string, AttributeValue> item, string hashKeyName)
@@ -291,8 +305,22 @@ public sealed class DynamoUserRepository : IUserRepository
             EmailVerificationToken = GetString(item, "EmailVerificationToken"),
             EmailVerificationTokenExpiresAt = ParseDate(GetString(item, "EmailVerificationTokenExpiresAt")),
             PasswordResetToken = GetString(item, "PasswordResetToken"),
-            PasswordResetTokenExpiresAt = ParseDate(GetString(item, "PasswordResetTokenExpiresAt"))
+            PasswordResetTokenExpiresAt = ParseDate(GetString(item, "PasswordResetTokenExpiresAt")),
+            CalComAccessToken = GetString(item, "CalComAccessToken"),
+            CalComRefreshToken = GetString(item, "CalComRefreshToken"),
+            CalComTokenExpiresAt = ParseDate(GetString(item, "CalComTokenExpiresAt")),
+            CalComScopes = GetString(item, "CalComScopes"),
+            CalComEventTypeId = GetNullableInt(item, "CalComEventTypeId"),
+            CalComWebhookId = GetString(item, "CalComWebhookId"),
+            CalComWebhookSecret = GetString(item, "CalComWebhookSecret"),
+            CalComConnectedAt = ParseDate(GetString(item, "CalComConnectedAt"))
         };
+    }
+
+    private static int? GetNullableInt(Dictionary<string, AttributeValue> item, string key)
+    {
+        if (!item.TryGetValue(key, out var value)) return null;
+        return int.TryParse(value.N ?? value.S, out var parsed) ? parsed : null;
     }
 
     private static string? GetString(Dictionary<string, AttributeValue> item, string key)

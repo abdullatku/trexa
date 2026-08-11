@@ -21,4 +21,12 @@ public sealed class ApplicationUser
     public DateTime? EmailVerificationTokenExpiresAt { get; set; }
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetTokenExpiresAt { get; set; }
+    public string? CalComAccessToken { get; set; }
+    public string? CalComRefreshToken { get; set; }
+    public DateTime? CalComTokenExpiresAt { get; set; }
+    public string? CalComScopes { get; set; }
+    public int? CalComEventTypeId { get; set; }
+    public string? CalComWebhookId { get; set; }
+    public string? CalComWebhookSecret { get; set; }
+    public DateTime? CalComConnectedAt { get; set; }
 }

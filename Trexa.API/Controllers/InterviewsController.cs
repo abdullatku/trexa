@@ -21,6 +21,7 @@ public sealed class InterviewsController : ControllerBase
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
     private readonly IVideoConferenceService _videoConferenceService;
+    private readonly ICalComOAuthService _calComOAuthService;
     private readonly DynamoDbSettings _settings;
 
     public InterviewsController(
@@ -29,6 +30,7 @@ public sealed class InterviewsController : ControllerBase
         ISubscriptionRepository subscriptionRepository,
         IEmailService emailService,
         IVideoConferenceService videoConferenceService,
+        ICalComOAuthService calComOAuthService,
         IOptions<DynamoDbSettings> settings)
     {
         _store = store;
@@ -36,6 +38,7 @@ public sealed class InterviewsController : ControllerBase
         _userRepository = userRepository;
         _emailService = emailService;
         _videoConferenceService = videoConferenceService;
+        _calComOAuthService = calComOAuthService;
         _settings = settings.Value;
     }
 
@@ -640,6 +643,41 @@ public sealed class InterviewsController : ControllerBase
         if (role == "interviewer" && interview.InterviewerId != User.GetUserId())
         {
             return Forbid();
+        }
+
+        if (role == "interviewer" && Guid.TryParse(User.GetUserId(), out var interviewerId))
+        {
+            var interviewer = await _userRepository.GetByIdAsync(interviewerId, cancellationToken);
+            if (interviewer is null)
+            {
+                return NotFound(new { error = "Interviewer account not found" });
+            }
+
+            if (string.IsNullOrWhiteSpace(interviewer.CalComAccessToken))
+            {
+                try
+                {
+                    return Conflict(new
+                    {
+                        error = "Connect or create your Cal.com account to create this meeting.",
+                        errorCode = "CALCOM_ACCOUNT_REQUIRED",
+                        authorizationUrl = _calComOAuthService.BuildAuthorizationUrl(interviewer)
+                    });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = ex.Message });
+                }
+            }
+
+            if (!interviewer.CalComEventTypeId.HasValue)
+            {
+                return Conflict(new
+                {
+                    error = "Select your Cal.com event type before creating the meeting.",
+                    errorCode = "CALCOM_EVENT_TYPE_REQUIRED"
+                });
+            }
         }
 
         VideoMeetingResult meeting;
